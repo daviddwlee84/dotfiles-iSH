@@ -1,0 +1,29 @@
+site_name: dotfiles-iSH
+site_url: https://daviddwlee84.github.io/dotfiles-iSH/
+repo_url: https://github.com/daviddwlee84/dotfiles-iSH
+theme:
+  name: material
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: zh-TW
+          name: 繁體中文
+          build: true
+          nav_translations:
+            Home: 首頁
+            Setup: 安裝與管理
+            Tools: 工具與支援
+            Verification: 驗證與維護
+            iOS terminals: iOS 終端機
+nav:
+  - Home: index.md
+  - Setup: setup.md
+  - Tools: tools.md
+  - Verification: verification.md
+  - iOS terminals: ios-terminals.md

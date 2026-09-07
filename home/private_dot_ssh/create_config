@@ -1,0 +1,9 @@
+# Client configuration only. Existing configuration is never overwritten.
+Host github.com
+    HostName ssh.github.com
+    Port 443
+    User git
+
+Host *
+    ServerAliveInterval 15
+    ServerAliveCountMax 2

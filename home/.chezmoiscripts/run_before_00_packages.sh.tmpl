@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+sh '{{ .chezmoi.workingTree | replace "'" "'\\''" }}'/scripts/manage.sh --prepare-chezmoi

@@ -1,0 +1,25 @@
+# Validate chezmoi on an actual iSH device
+
+Status: pending device acceptance
+
+## Context and evidence
+
+The user transcript of 2026-09-07 confirms the original minimal bootstrap ran on
+iSH's Alpine v3.14-2023-05-19 snapshot. It does not test this new source or chezmoi.
+The official chezmoi v2.72.1 release has a linux_i386 tarball, locked with SHA-256
+in config/assets.lock. Historical iSH Go reports describe emulator deadlocks;
+a matching architecture and a passing --version probe cannot prove apply stability.
+
+## Chosen first-version behavior
+
+Default sh, optional explicit --manager chezmoi, no Alpine migration, no on-device
+source compilation. Source files are shared between managers and parity-tested
+with real chezmoi on a host. Existing old helper blocks remain authoritative.
+
+## Resume / acceptance
+
+Follow docs/verification.md on an actual backed-up iSH filesystem. Record iSH
+build, iOS version, Alpine branch, binary version, shell startup and repeated
+chezmoi diff/apply duration. Test suspend/restart and Files mount. Keep sh default
+until repeated device results justify a separate reviewed change. A host Alpine
+container is not this emulator. No remote credentials are recorded here.

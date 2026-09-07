@@ -1,0 +1,37 @@
+# Maintainer checks; never deployed to target devices.
+repos:
+  # Auto-redact leaked secrets in agent artifacts BEFORE gitleaks runs. If a
+  # file is rewritten, pre-commit reports "files were modified by this hook"
+  # and you must `git add` + re-commit — same UX as trailing-whitespace.
+  - repo: https://github.com/daviddwlee84/agent-skills
+    rev: ahh-v1.1.0
+    hooks:
+      - id: redact-agent-secrets
+
+  # Gitleaks — block the commit when an unallowlisted secret is detected.
+  # Config: .gitleaks.toml (agent-history-hygiene portable subset).
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.22.1
+    hooks:
+      # System-installed gitleaks; avoids the Go toolchain build.
+      - id: gitleaks-system
+        pass_filenames: false
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: detect-private-key
+      # 8 MB, matching the dotfiles repo: the binding constraint is SpecStory
+      # transcripts, which are plain markdown and grow with session length.
+      # The cap still catches what it is for — a binary or dataset landing
+      # here by accident.
+      - id: check-added-large-files
+        args: ['--maxkb=20000']
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+        exclude: ^\.specstory/
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+        exclude: ^\.specstory/
+      - id: check-yaml
+      - id: check-json

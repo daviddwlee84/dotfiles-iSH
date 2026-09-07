@@ -1,0 +1,4 @@
+jq
+less
+rsync
+python3

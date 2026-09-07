@@ -1,0 +1,15 @@
+#!/bin/sh
+# chezmoi modify_ protocol: existing bytes on stdin, candidate bytes on stdout.
+set -eu
+TASK_TMP=$(mktemp)
+trap 'rm -f "$TASK_TMP"' EXIT HUP INT TERM
+cat >"$TASK_TMP"
+cat "$TASK_TMP"
+if ! grep -qF '# >>> dotfiles-lite >>>' "$TASK_TMP"; then
+    cat <<'EOF'
+
+# >>> dotfiles-lite >>>
+[ ! -r "$HOME/.config/dotfiles-lite/profile.sh" ] || . "$HOME/.config/dotfiles-lite/profile.sh"
+# <<< dotfiles-lite <<<
+EOF
+fi

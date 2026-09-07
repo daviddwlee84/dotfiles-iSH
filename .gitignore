@@ -1,0 +1,12 @@
+.DS_Store
+/site/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+*.key
+*.pem
+private/
+*.log
+.claude/settings.local.json

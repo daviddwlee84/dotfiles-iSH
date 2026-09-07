@@ -1,0 +1,7 @@
+git
+openssh-client
+tmux
+nano
+vim
+curl
+ca-certificates
