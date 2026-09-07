@@ -35,3 +35,6 @@ from device acceptance. Pending experiments are indexed in the repository TODO.
 The shared shell core/tests/assets lock are copied in the two lightweight repos;
 changes to their shared behavior must be mirrored. Package feeds and user configs
 are platform-specific. Maintainer commands and release assets never auto-upgrade.
+
+chezmoi x86_64 uses the explicitly named `linux-musl_amd64` asset; upstream
+`linux_amd64` aliases the glibc build and cannot be used as the router default.

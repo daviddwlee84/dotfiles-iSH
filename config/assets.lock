@@ -1,5 +1,5 @@
 # tool|arch|version|URL|SHA256|format|member|download-bytes
-chezmoi|amd64|v2.72.1|https://github.com/twpayne/chezmoi/releases/download/v2.72.1/chezmoi_2.72.1_linux_amd64.tar.gz|9f97d32caca166e5c92160ec3a9325519809c38963121cef38173142065c981f|tar.gz|chezmoi|15661909
+chezmoi|amd64|v2.72.1|https://github.com/twpayne/chezmoi/releases/download/v2.72.1/chezmoi_2.72.1_linux-musl_amd64.tar.gz|b961e2972d6fcd1002f9b986d4a61dc5da288e96aab226434fd5b20a7de80cf9|tar.gz|chezmoi|15709577
 chezmoi|arm64|v2.72.1|https://github.com/twpayne/chezmoi/releases/download/v2.72.1/chezmoi_2.72.1_linux_arm64.tar.gz|75508ef41216b6d64f3145986b751729d7f92d09c6bad77d51cf2895ab35a508|tar.gz|chezmoi|14102664
 chezmoi|i386|v2.72.1|https://github.com/twpayne/chezmoi/releases/download/v2.72.1/chezmoi_2.72.1_linux_i386.tar.gz|09506e55f48e5ee2dac76390ebf436499dcb45dc80871d5daccfef5bd3d0c439|tar.gz|chezmoi|14874135
 herdr|amd64|v0.8.2|https://github.com/herdrdev/herdr/releases/download/v0.8.2/herdr-linux-x86_64|976150a14d490c94b243ea2e1a7eb2dfb67f12e36b182db90936f6728e6aecf4|raw|-|22733040

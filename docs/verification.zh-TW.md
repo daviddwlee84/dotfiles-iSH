@@ -26,3 +26,6 @@ CI 另在可拋棄的 x86_64／ARM64 musl container 啟動鎖定的 Linux binary
 
 兩個輕量 repo 的共用 shell core、tests、assets lock 是相同副本，變更共同行為時同步修改。
 套件來源與使用者設定維持平台原生；維護工具及 release assets 不自動升級。
+
+chezmoi x86_64 使用明確的 `linux-musl_amd64` asset；upstream 的
+`linux_amd64` 是 glibc build 別名，不能直接當成 router 預設 binary。
