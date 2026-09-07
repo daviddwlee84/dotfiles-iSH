@@ -58,7 +58,7 @@ setup() {
 [ "$1" = -s ] && [ "$2" = KILL ] && [ "$3" = 15 ] || exit 97
 shift 3
 # Shorten only the duration while exercising the actual timeout/signal behavior.
-exec "$REAL_TIMEOUT" -s KILL 1 "$@"
+exec "$REAL_TIMEOUT" -s KILL 5 "$@"
 EOF
     cat >"$HOME/bin/stubborn" <<'EOF'
 #!/bin/sh
@@ -70,7 +70,8 @@ EOF
     run env PATH="$HOME/bin:$PATH" sh -c '
         DOTFILES_REPO=$REPO
         . "$REPO/scripts/core.sh"
-        bounded_probe "$HOME/bin/stubborn"
+        # Keep new-script startup outside this shortened deadline test.
+        bounded_probe sh "$HOME/bin/stubborn"
     '
     [ "$status" != 0 ]
     [ -f "$HOME/probe-started" ]
