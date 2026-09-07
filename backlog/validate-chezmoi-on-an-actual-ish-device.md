@@ -35,3 +35,9 @@ now has a builtin-only prompt. Actual iSH optional-tool execution remains pendin
 2026-09-07 preference update: chezmoi is now the requested default with a Git source.
 Actual iSH emulator acceptance remains pending; explicit `--manager sh` is the
 recovery path if the locked binary fails its capability probe.
+
+2026-09-07 device follow-up: iSH 1.3.2 installed native Bash 5.1.16/Starship
+0.54.0, but the locked chezmoi probe hung for over five minutes until Ctrl+C.
+The binary was not installed. Timeout now uses SIGKILL; actual runtime acceptance
+remains pending. See docs/system-upgrade.md for recovery and independent Alpine
+filesystem testing. Do not label a host/container probe as an iSH fix.

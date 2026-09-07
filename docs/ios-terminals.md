@@ -15,7 +15,7 @@ Herdr and SpecStory currently publish 64-bit Linux assets; they have no selected
 iSH/i386 installer here. Node/Rust/Go workloads have historical SIGILL, deadlock
 and syscall reports. These are version-dependent observations, not proof that
 every binary in those languages is impossible. chezmoi publishes an i386 asset;
-this repository offers it experimentally and retains sh as the reliable default.
+this repository defaults to it experimentally, with explicit sh recovery available.
 
 The earlier source investigation noted that CPUID can advertise SSE2 while an
 individual instruction still hits an unimplemented emulator gadget. Do not infer
@@ -60,3 +60,7 @@ them as described in [tools](tools.md). The original research is preserved at
 Sources: [iSH](https://github.com/ish-app/ish), [historical Go report](https://github.com/ish-app/ish/issues/1230),
 [historical Node report](https://github.com/ish-app/ish/issues/1564),
 [chezmoi releases](https://github.com/twpayne/chezmoi/releases).
+
+The follow-up iSH 1.3.2 report installed Bash/Starship but stalled during the
+chezmoi probe for over five minutes. See [system upgrades](system-upgrade.md) for
+the timeout correction, immediate shell recovery and separate-filesystem testing.

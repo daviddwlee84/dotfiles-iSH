@@ -88,6 +88,7 @@ Pitfalls owned by this folder. Keep alphabetical.
 
 | Slug | Symptom keywords | Status |
 |---|---|---|
+| [chezmoi-probe-waits-past-timeout](chezmoi-probe-waits-past-timeout.md) | chezmoi, timeout, five minutes, SIGKILL | timeout fixed; emulator acceptance pending |
 | [ish-illegal-instruction-despite-sse2](ish-illegal-instruction-despite-sse2.md) | Illegal instruction, SIGILL | historical investigation; device/version-specific |
 | [ish-tmux-ctrl-digit-dead-wrong-binding](ish-tmux-ctrl-digit-dead-wrong-binding.md) | Ctrl+digits, mouse, extended keys | minimal tmux seed supplied; device acceptance pending |
 

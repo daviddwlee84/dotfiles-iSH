@@ -115,9 +115,24 @@ sha256_file() {
     else warn 'A SHA-256 verifier is required'; return 1; fi
 }
 
-probe() {
+bounded_probe() {
+    # BusyBox 1.33 (stock iSH) supports -s, but not GNU timeout's -k.
+    # These are read-only startup probes: kill on expiry instead of relying on
+    # a Go runtime handling TERM. An emulator-wide deadlock can still defeat it.
     command -v timeout >/dev/null 2>&1 || { warn 'timeout is required (OpenWrt: install coreutils-timeout) for bounded binary checks'; return 1; }
-    timeout 15 "$1" --version >/dev/null 2>&1
+    probe_status=0
+    timeout -s KILL 15 "$@" 2>/dev/null || probe_status=$?
+    case "$probe_status" in
+        0) return 0 ;;
+        124|137) warn 'Probe timed out (15s, SIGKILL). On iSH this can indicate emulator/runtime incompatibility.' ;;
+        130) warn 'Probe interrupted.' ;;
+        *) warn "Probe failed (exit $probe_status)." ;;
+    esac
+    return "$probe_status"
+}
+
+probe() {
+    bounded_probe "$1" --version >/dev/null
 }
 
 # The Alpine 3.14 chezmoi package runs, but predates .chezmoiroot/workingTree.
@@ -125,9 +140,11 @@ probe() {
 tool_ready() (
     tool_name=$1
     binary=$2
-    probe "$binary" || exit 1
+    say "$tool_name: checking --version (15s deadline)" >&2
+    probe "$binary" || { warn "$tool_name: --version probe failed or timed out; executable not accepted"; exit 1; }
     if [ "$tool_name" = chezmoi ]; then
-        capability=$(timeout 15 "$binary" execute-template '{{ if hasKey .chezmoi "workingTree" }}supported{{ end }}' 2>/dev/null) || exit 1
+        say 'chezmoi: checking source-layout support (15s deadline)' >&2
+        capability=$(bounded_probe "$binary" execute-template '{{ if hasKey .chezmoi "workingTree" }}supported{{ end }}') || { warn 'chezmoi: source-layout probe failed or timed out; executable not accepted'; exit 1; }
         [ "$capability" = supported ] || exit 1
     fi
 )
@@ -152,16 +169,23 @@ EOF
         case "$available" in ''|*[!0-9]*) warn 'Cannot measure available storage'; exit 1 ;; esac
         [ "$available" -ge "$required" ] || { warn "$tool needs at least $required KiB staging space at $location; available $available KiB"; exit 1; }
     done
+    say "$tool: downloading release (network deadline 180s)"
     fetch "$url" "$asset_tmp/download" || exit 1
+    say "$tool: verifying SHA-256"
     actual=$(sha256_file "$asset_tmp/download") || exit 1
     [ "$actual" = "$digest" ] || { warn "$tool checksum mismatch; installed binary preserved"; exit 1; }
+    say "$tool: unpacking executable"
     case "$format" in
         raw) cp "$asset_tmp/download" "$asset_tmp/candidate" ;;
         tar.gz) tar -xzOf "$asset_tmp/download" "$member" >"$asset_tmp/candidate" || exit 1 ;;
         *) warn "Unknown archive format: $format"; exit 1 ;;
     esac
     chmod 755 "$asset_tmp/candidate"
-    tool_ready "$tool" "$asset_tmp/candidate" || { warn "$tool failed its bounded compatibility check; not installed"; exit 1; }
+    tool_ready "$tool" "$asset_tmp/candidate" || {
+        warn "$tool failed its bounded compatibility check; not installed"
+        [ "${PLATFORM:-}" != ish ] || warn 'iSH recovery: sh ~/.local/share/dotfiles-iSH/bootstrap.sh --manager sh --config-only --with starship'
+        exit 1
+    }
     mkdir -p "$HOME/.local/bin"
     [ ! -L "$HOME/.local/bin/$tool" ] || { warn "Refusing to replace symlink: $tool"; exit 1; }
     # Same-filesystem rename keeps a previous executable intact on copy failure.

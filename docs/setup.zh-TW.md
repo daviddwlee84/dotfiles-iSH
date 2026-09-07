@@ -101,3 +101,5 @@ chezmoi init --apply https://github.com/daviddwlee84/dotfiles-iSH.git
 工具 binary 升級仍是明確操作：維護者一起更新 `config/assets.lock` 的版本、URL、
 hash、member 和大小並通過 CI；既有可用版本會保留。
 Herdr 升級應在 pane 外依 upstream 保留 session 的程序執行。
+
+檢查卡住或想升級 Alpine，請看[系統升級](system-upgrade.md)。

@@ -13,7 +13,7 @@ iSH 用於 Git、SSH、少量編輯及 Files／Obsidian 同步；Herdr、SpecSto
 Herdr、SpecStory 目前發行 64 位元 Linux asset，本 repo 沒有 iSH／i386 installer。
 Node／Rust／Go 工作負載有歷史 SIGILL、deadlock、syscall 回報；它們依版本而異，
 不代表用這些語言寫的每個 binary 都不可能運作。chezmoi 有 i386 asset，
-本 repo 提供實驗性選用，同時保留 sh 為預設路徑。
+本 repo 預設實驗性 chezmoi，同時提供明確的 sh 復原選項。
 
 原始研究指出，CPUID 即使宣告 SSE2，特定指令仍可能撞上尚未實作的 emulator gadget。
 不要只憑 CPU feature 推論能否執行；排錯時保留 opcode／錯誤與確切版本。
@@ -47,3 +47,6 @@ Keepalive 只能發現斷線，無法防止 suspend；app 重啟後需重新掛�
 
 來源：[iSH](https://github.com/ish-app/ish)、[歷史 Go 回報](https://github.com/ish-app/ish/issues/1230)、
 [歷史 Node 回報](https://github.com/ish-app/ish/issues/1564)、[chezmoi releases](https://github.com/twpayne/chezmoi/releases)。
+
+後續 iSH 1.3.2 回報：Bash／Starship 已安裝，chezmoi 檢查卡住超過五分鐘。
+逾時修正、先恢復 shell 設定及獨立 filesystem 測試見[系統升級](system-upgrade.md)。

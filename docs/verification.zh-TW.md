@@ -32,3 +32,6 @@ chezmoi x86_64 使用明確的 `linux-musl_amd64` asset；upstream 的
 
 Git 整合 fixture 另涵蓋 snapshot backup、main tracking、真正 upstream 新 commit
 後的普通 chezmoi update／apply、離線失敗，以及既有／自訂 chezmoi config 保留。
+
+啟動 probe 現在於 15 秒後送 SIGKILL，並區分下載／hash／解壓／版本／template 階段。
+回歸測試驗證忽略 TERM 的程序仍會被終止；這不代表 iSH 模擬器相容性已驗收。

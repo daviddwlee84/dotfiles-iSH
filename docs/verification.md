@@ -41,3 +41,7 @@ chezmoi x86_64 uses the explicitly named `linux-musl_amd64` asset; upstream
 Git integration fixtures additionally cover snapshot backups, tracking main, a real
 upstream commit followed by plain chezmoi update/apply, offline failure, and
 preserving existing/custom chezmoi configuration.
+
+Startup probes now use SIGKILL after 15 seconds, with distinct download/hash/
+extract/version/template stages. A regression test runs a process that ignores
+TERM and verifies it is killed. This does not establish iSH emulator compatibility.

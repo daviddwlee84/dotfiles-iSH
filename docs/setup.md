@@ -115,3 +115,5 @@ Upgrading tool binaries remains explicit: maintainers update the version, URL,
 hash, member and size in `config/assets.lock` together and validate in CI. Existing
 working versions are kept. Herdr upgrades belong outside Herdr panes and follow
 upstream's session-preserving procedure.
+
+If a probe stalls or you want to upgrade Alpine, see [system upgrades](system-upgrade.md).

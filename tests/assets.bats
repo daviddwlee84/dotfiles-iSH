@@ -47,3 +47,32 @@ setup() {
     ' "$REPO/config/assets.lock"
     [ "$status" = 0 ]
 }
+
+
+@test "a probe kills a TERM-ignoring process and reports failure" {
+    export REAL_TIMEOUT="$(command -v timeout || true)"
+    [ -n "$REAL_TIMEOUT" ] || skip 'real timeout is required'
+    mkdir -p "$HOME/bin"
+    cat >"$HOME/bin/timeout" <<'EOF'
+#!/bin/sh
+[ "$1" = -s ] && [ "$2" = KILL ] && [ "$3" = 15 ] || exit 97
+shift 3
+# Shorten only the duration while exercising the actual timeout/signal behavior.
+exec "$REAL_TIMEOUT" -s KILL 1 "$@"
+EOF
+    cat >"$HOME/bin/stubborn" <<'EOF'
+#!/bin/sh
+trap '' TERM
+: >"$HOME/probe-started"
+while :; do :; done
+EOF
+    chmod +x "$HOME/bin/timeout" "$HOME/bin/stubborn"
+    run env PATH="$HOME/bin:$PATH" sh -c '
+        DOTFILES_REPO=$REPO
+        . "$REPO/scripts/core.sh"
+        bounded_probe "$HOME/bin/stubborn"
+    '
+    [ "$status" != 0 ]
+    [ -f "$HOME/probe-started" ]
+    [[ "$output" == *'Probe timed out'* ]]
+}

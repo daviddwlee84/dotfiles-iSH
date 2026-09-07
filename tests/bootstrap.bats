@@ -44,7 +44,8 @@ case "$1" in info) exit 1 ;; add) exit "${FAIL_PACKAGES:-0}" ;; update) exit 0 ;
 EOF
     cat >"$DOTFILES_TEST_ROOT/bin/timeout" <<'EOF'
 #!/bin/sh
-shift
+[ "$1" = -s ] && [ "$2" = KILL ] && [ "$3" = 15 ] || exit 97
+shift 3
 exec "$@"
 EOF
     # A fixture must never contact the network, even when the installer regresses.

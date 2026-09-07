@@ -35,7 +35,7 @@ Someday / nice-to-have.
 ## P?
 
 Needs a spike before committing to a real priority. Tag as `[?/Effort]`.
-- [ ] **[?/M] Validate chezmoi on an actual iSH device** — Record iSH build, Alpine branch, i386 release and bounded startup/apply results; chezmoi is now default; verify emulator acceptance and retain explicit sh recovery. → [research](backlog/validate-chezmoi-on-an-actual-ish-device.md)
+- [ ] **[?/M] Validate chezmoi on an actual iSH device** — iSH 1.3.2 stalled over five minutes during the 2.72.1 probe; timeout is hardened, but runtime acceptance remains pending. Retain explicit sh recovery. → [research](backlog/validate-chezmoi-on-an-actual-ish-device.md)
 
 
 ## Done
