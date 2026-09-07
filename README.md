@@ -10,9 +10,15 @@ See [setup](docs/setup.md), [繁體中文安裝](docs/setup.zh-TW.md),
 ```sh
 wget -O bootstrap.sh https://raw.githubusercontent.com/daviddwlee84/dotfiles-iSH/main/bootstrap.sh
 sh bootstrap.sh
+. ~/.profile
+# Subsequent updates:
+chezmoi update
 ```
 
-An existing checkout also works: `sh bootstrap.sh --config-only --manager sh`.
+**Default: chezmoi with a Git checkout.** Existing sh/snapshot installs migrate through
+the current bootstrap; the full previous source is retained in a sibling backup.
+
+An explicit offline sh checkout also works: `sh bootstrap.sh --config-only --manager sh`.
 Use `sh bootstrap.sh --help` for optional tools and management modes.
 No firmware, network policy or credentials are deployed.
 

@@ -49,10 +49,63 @@ branch_description() {
     ' "$SYSROOT/etc/apk/repositories"
 }
 
+load_network_preferences() {
+    if [ -z "$PACKAGE_NETWORK" ]; then PACKAGE_NETWORK=$(cat "$STATE/package-network" 2>/dev/null || printf inherit); fi
+    if [ -z "$SOURCE_NETWORK" ]; then SOURCE_NETWORK=$(cat "$STATE/source-network" 2>/dev/null || printf inherit); fi
+    case "$PACKAGE_NETWORK" in inherit|direct) ;; *) die 'Expected --package-network inherit|direct' ;; esac
+    case "$SOURCE_NETWORK" in
+        inherit|direct) ;;
+        proxy) [ "$PLATFORM" = openwrt ] || die '--source-network proxy requires OpenWrt Nikki; use inherited proxy variables on iSH.' ;;
+        *) die 'Expected --source-network inherit|direct|proxy' ;;
+    esac
+}
+
+source_command() (
+    case "${SOURCE_NETWORK:-inherit}" in
+        direct)
+            unset http_proxy https_proxy all_proxy ftp_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY FTP_PROXY no_proxy NO_PROXY
+            no_proxy='*'; NO_PROXY='*'; export no_proxy NO_PROXY ;;
+        proxy) exec sh "$REPO/home/dot_local/bin/executable_netrun" proxy -- "$@" ;;
+    esac
+    exec "$@"
+)
+
+ensure_git_source() (
+    command -v git >/dev/null 2>&1 || { warn 'Git is required for chezmoi update'; exit 1; }
+    [ ! -e "$REPO/.git" ] && [ ! -L "$REPO/.git" ] || { warn 'Existing Git metadata preserved'; exit 1; }
+    case "$PLATFORM" in ish) repository=dotfiles-iSH ;; openwrt) repository=dotfiles-OpenWrt ;; esac
+    remote="https://github.com/daviddwlee84/$repository.git"
+    # Offline integration fixtures cannot redirect a real device's upstream.
+    if [ -n "$SYSROOT" ] && [ -n "${DOTFILES_TEST_GIT_REMOTE:-}" ]; then
+        case "$DOTFILES_TEST_GIT_REMOTE" in /*) remote=$DOTFILES_TEST_GIT_REMOTE ;; *) exit 1 ;; esac
+    fi
+    ref=${DOTFILES_REF:-main}
+    case "$ref" in ''|*[!a-zA-Z0-9._-]*) warn 'DOTFILES_REF must be a simple branch, tag or commit'; exit 1 ;; esac
+    git_tmp=$(mktemp -d "$(dirname "$REPO")/.${repository}.git.XXXXXX")
+    trap 'rm -rf "$git_tmp"' EXIT HUP INT TERM
+    git init -q "$git_tmp/source" || exit 1
+    git -C "$git_tmp/source" remote add origin "$remote" || exit 1
+    say "Creating Git source for $repository ($ref)"
+    source_command git -C "$git_tmp/source" fetch --depth=1 origin "$ref" || exit 1
+    if [ "$ref" = main ]; then
+        git -C "$git_tmp/source" checkout -q -B main FETCH_HEAD || exit 1
+        git -C "$git_tmp/source" config branch.main.remote origin || exit 1
+        git -C "$git_tmp/source" config branch.main.merge refs/heads/main || exit 1
+    else
+        git -C "$git_tmp/source" checkout -q --detach FETCH_HEAD || exit 1
+        warn 'Pinned source: switch to a tracking branch before using chezmoi update.'
+    fi
+    [ -f "$git_tmp/source/scripts/manage.sh" ] && [ "$(cat "$git_tmp/source/config/platform")" = "$PLATFORM" ] || exit 1
+    backup=$(mktemp -d "$(dirname "$REPO")/.${repository}.snapshot.XXXXXX")
+    mv "$REPO" "$backup/source" || exit 1
+    if ! mv "$git_tmp/source" "$REPO"; then mv "$backup/source" "$REPO"; exit 1; fi
+    say "Previous snapshot (including any custom source files) preserved at $backup/source"
+)
+
 fetch() {
-    if command -v curl >/dev/null 2>&1; then curl -fLsS --connect-timeout 15 --max-time 180 -o "$2" "$1"
-    elif command -v wget >/dev/null 2>&1; then wget -T 180 -O "$2" "$1"
-    elif command -v uclient-fetch >/dev/null 2>&1; then uclient-fetch -T 180 -O "$2" "$1"
+    if command -v curl >/dev/null 2>&1; then source_command curl -fLsS --connect-timeout 15 --max-time 180 -o "$2" "$1"
+    elif command -v wget >/dev/null 2>&1; then source_command wget -T 180 -O "$2" "$1"
+    elif command -v uclient-fetch >/dev/null 2>&1; then source_command uclient-fetch -T 180 -O "$2" "$1"
     else warn 'Need curl, wget or uclient-fetch'; return 1; fi
 }
 
@@ -187,14 +240,8 @@ packages() {
 
 choose_manager() {
     SELECTED=$MANAGER
-    if [ "$SELECTED" = auto ] && [ -r "$STATE/manager" ]; then SELECTED=$(cat "$STATE/manager"); fi
-    case "$SELECTED" in auto|chezmoi|sh) ;; *) die 'Invalid stored/requested manager' ;; esac
-    if [ "$SELECTED" = auto ]; then
-        if [ "$PLATFORM" = ish ]; then SELECTED='sh'
-        elif command -v chezmoi >/dev/null 2>&1 && tool_ready chezmoi "$(command -v chezmoi)"; then SELECTED=chezmoi
-        elif [ "$CONFIG_ONLY" = 0 ] && install_asset chezmoi; then SELECTED=chezmoi
-        else SELECTED='sh'; warn 'chezmoi unavailable; first setup will use sh before any configuration writes.'; fi
-    elif [ "$SELECTED" = chezmoi ]; then
+    [ "$SELECTED" != auto ] || SELECTED=chezmoi
+    if [ "$SELECTED" = chezmoi ]; then
         if ! command -v chezmoi >/dev/null 2>&1 || ! tool_ready chezmoi "$(command -v chezmoi)"; then
             [ "$CONFIG_ONLY" = 0 ] && install_asset chezmoi || die 'chezmoi unavailable. Retry explicitly with --manager sh.'
         fi
@@ -247,7 +294,43 @@ apply_sh() (
     done <"$REPO/config/files.list"
 )
 
+upgrade_update_config() {
+    has_update=$(chezmoi --config "$config" execute-template '{{ if hasKey (fromToml (include .chezmoi.configFile)) "update" }}yes{{ else }}no{{ end }}') || return 1
+    [ "$has_update" = no ] || return 0
+    [ ! -L "$config" ] || { warn 'chezmoi config symlink preserved; add the update command to its source manually.'; return 1; }
+    backup_config=$(mktemp "$(dirname "$config")/.chezmoi-before-git-update.XXXXXX")
+    cp "$config" "$backup_config" && chmod 600 "$backup_config" || return 1
+    config_tmp=$(mktemp "$(dirname "$config")/.dotfiles-update.XXXXXX")
+    cp "$backup_config" "$config_tmp"
+    printf '\n' >>"$config_tmp"
+    if ! chezmoi --config "$config" execute-template --source "$REPO" --destination "$HOME" <"$REPO/config/chezmoi-update.toml.tmpl" >>"$config_tmp"; then
+        rm -f "$config_tmp"; return 1
+    fi
+    if ! cmp -s "$config" "$backup_config"; then
+        rm -f "$config_tmp"; warn 'chezmoi config changed concurrently; preserving it'; return 1
+    fi
+    chmod 600 "$config_tmp" && mv "$config_tmp" "$config" || return 1
+    say "Added chezmoi update command; previous config retained at $backup_config"
+}
+
+check_sh_migration() {
+    [ "$(cat "$STATE/manager" 2>/dev/null || true)" = sh ] || return 0
+    while IFS='|' read -r kind source target mode; do
+        [ "$kind" = managed ] || continue
+        dest="$HOME/$target"
+        [ ! -L "$dest" ] || { warn "Local symlink preserved: $dest"; return 1; }
+        [ -f "$dest" ] || continue
+        if ! cmp -s "$dest" "$REPO/$source"; then
+            if [ ! -f "$STATE/managed/$target" ] || ! cmp -s "$dest" "$STATE/managed/$target"; then
+                warn "Local edit preserved during sh migration: $dest. Move your override to local.sh or edit the source first."
+                return 1
+            fi
+        fi
+    done <"$REPO/config/files.list"
+}
+
 apply_chezmoi() {
+    check_sh_migration || return 1
     config=${CHEZMOI_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/chezmoi/chezmoi.toml}
     if [ -f "$config" ]; then
         source_path=$(chezmoi --config "$config" source-path) || return 1
@@ -256,10 +339,10 @@ apply_chezmoi() {
             warn "Existing chezmoi source preserved: $source_path. Use --manager sh or explicitly migrate it."
             return 1 ;;
         esac
+        upgrade_update_config || return 1
         chezmoi --config "$config" apply --source "$REPO" --destination "$HOME" --exclude=scripts || return 1
     else
-        # init always creates Git metadata, even for a downloaded snapshot.
-        # Render our tiny sourceDir config first, then apply without initializing Git.
+        # Render config without init: Git is prepared above; config-only stays offline.
         mkdir -p "$(dirname "$config")"
         config_tmp=$(mktemp "$(dirname "$config")/.dotfiles-chezmoi.XXXXXX")
         if ! chezmoi --config "$config" execute-template --source "$REPO" --destination "$HOME" <"$REPO/home/.chezmoi.toml.tmpl" >"$config_tmp"; then
@@ -287,6 +370,12 @@ record_state() {
     mkdir -p "$STATE"
     printf '%s\n' "$SELECTED" >"$STATE/manager"
     printf '%s\n' "$WITH" >"$STATE/options"
+    # Direct chezmoi commands may have one-shot environment overrides. Only
+    # explicit setup persists connectivity choices, never the post-apply hook.
+    if [ "${ACTION:-setup}" != record ]; then
+        printf '%s\n' "$SOURCE_NETWORK" >"$STATE/source-network"
+        printf '%s\n' "$PACKAGE_NETWORK" >"$STATE/package-network"
+    fi
 }
 
 doctor() {

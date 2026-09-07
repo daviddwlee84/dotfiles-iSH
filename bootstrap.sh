@@ -8,9 +8,11 @@ BASE=$(CDPATH='' cd "$(dirname "$0")" && pwd -P)
 if [ "$UPDATE_SOURCE" = 0 ] && [ -f "$BASE/scripts/manage.sh" ] && [ -f "$BASE/config/platform" ]; then
     exec sh "$BASE/scripts/manage.sh" "$@"
 fi
+OFFLINE_ACTION=0
 for argument in "$@"; do
     case "$argument" in
-        --help|-h) printf '%s\n' 'bootstrap.sh [--update-source] [--manager auto|sh|chezmoi] [--with dev,starship,herdr,specstory,codex] [--package-network inherit|direct] [--config-only] [--dry-run] [--doctor]'; exit 0 ;;
+        --config-only|--doctor) OFFLINE_ACTION=1 ;;
+        --help|-h) printf '%s\n' 'bootstrap.sh [--update-source] [--manager auto|sh|chezmoi] [--with dev,starship,herdr,specstory,codex] [--source-network inherit|direct|proxy] [--package-network inherit|direct] [--config-only] [--dry-run] [--doctor]'; exit 0 ;;
         --dry-run) printf 'Would fetch %s, then inspect native prerequisites without applying.\n' "$REPOSITORY"; exit 0 ;;
     esac
 done
@@ -30,8 +32,11 @@ case "$REF" in ''|*[!a-zA-Z0-9._-]*) echo 'DOTFILES_REF must be a simple tag or 
 DEST="$HOME/.local/share/$REPOSITORY"
 if [ -e "$DEST" ]; then
     [ -d "$DEST" ] && [ ! -L "$DEST" ] || { echo 'Unsafe existing source path' >&2; exit 1; }
-    if [ "$UPDATE_SOURCE" = 1 ]; then
-        [ ! -e "$DEST/.git" ] && [ ! -L "$DEST/.git" ] || { echo 'Git checkout preserved: update it with git pull --ff-only.' >&2; exit 1; }
+    if [ "$OFFLINE_ACTION" = 1 ] && [ "$UPDATE_SOURCE" = 0 ] && [ -f "$DEST/scripts/manage.sh" ]; then
+        exec sh "$DEST/scripts/manage.sh" "$@"
+    fi
+    if [ "$UPDATE_SOURCE" = 1 ] || { [ ! -e "$DEST/.git" ] && [ ! -L "$DEST/.git" ]; }; then
+        [ ! -e "$DEST/.git" ] && [ ! -L "$DEST/.git" ] || { echo 'Git checkout preserved: update it with chezmoi update.' >&2; exit 1; }
         [ -f "$DEST/scripts/manage.sh" ] && [ -f "$DEST/config/platform" ] || { echo 'Unrecognized source snapshot' >&2; exit 1; }
     elif [ -f "$DEST/scripts/manage.sh" ]; then
         echo "Using existing source at $DEST (install-only; update the source explicitly)."

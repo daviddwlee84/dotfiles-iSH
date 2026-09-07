@@ -6,7 +6,8 @@ Unix > Windows >> iSH / OpenWrt. Keep the target baseline small.
 - Read README.md and bilingual docs/setup.md + docs/setup.zh-TW.md before changing installation.
 - bootstrap.sh and scripts/{manage,core}.sh run in BusyBox ash. No Bash, Python,
   Ansible, just, Node or chezmoi prerequisite on the target.
-- scripts/core.sh, scripts/manage.sh, tests/bootstrap.bats and config/assets.lock
+- scripts/core.sh, scripts/manage.sh, scripts/update.sh, tests/bootstrap.bats,
+  config/chezmoi-update.toml.tmpl and config/assets.lock
   are mirrored verbatim in the other lightweight companion. Update both together.
 - home/ is the chezmoi source; config/files.list explicitly maps those SAME source
   files for sh deployment. Test both managers after changing a managed file.
@@ -14,6 +15,10 @@ Unix > Windows >> iSH / OpenWrt. Keep the target baseline small.
   credential writes, service enable/restart, UCI/network/firewall changes or
   automatic git commits/pushes on target devices.
 - ash has a builtin-only prompt; Starship uses upstream Bash initialization. No chsh or automatic exec bash.
+- Default manager is chezmoi; auto is an alias. First online setup migrates snapshots
+  to a real tracking Git checkout and retains the full previous source in a backup.
+  Daily chezmoi update uses a fast-forward-only pull, then the native package/apply hooks.
+  Source/package network preferences are nonsecret local state; never persist proxy auth.
 - Installs are install-only. Release URLs/architecture/member/SHA-256/size are
   locked in config/assets.lock. Never bypass a failed checksum or runtime probe.
 - Existing SSH/tmux configs are seeds; never overwrite them. Preserve legacy

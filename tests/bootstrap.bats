@@ -2,6 +2,9 @@
 
 setup() {
     export REPO="$(cd "$BATS_TEST_DIRNAME/.." && pwd -P)"
+    export GIT_CONFIG_NOSYSTEM=1
+    export GIT_CONFIG_GLOBAL="$BATS_TEST_TMPDIR/gitconfig"
+    printf '[url "file:///nonexistent-fixture-network/"]\n insteadOf = https://\n[core]\n hooksPath = /dev/null\n[user]\n name = Fixture\n email = fixture@example.invalid\n' >"$GIT_CONFIG_GLOBAL"
     export REAL_CHEZMOI="$(command -v chezmoi || true)"
     export DOTFILES_TEST_ROOT="$BATS_TEST_TMPDIR/fixture"
     export DOTFILES_TEST_MODE=fixture-only-v1
@@ -213,16 +216,21 @@ EOF
     grep -q '^init bash$' "$DOTFILES_TEST_ROOT/starship-calls"
 }
 
-@test "initial auto can use sh and retains that selection on subsequent runs" {
+@test "default and auto require chezmoi rather than silently retaining legacy sh" {
     printf '#!/bin/sh\nexit 1\n' >"$DOTFILES_TEST_ROOT/bin/chezmoi"
     chmod +x "$DOTFILES_TEST_ROOT/bin/chezmoi"
+    mkdir -p "$HOME/.local/state/dotfiles-lite"
+    echo sh >"$HOME/.local/state/dotfiles-lite/manager"
     run sh "$REPO/bootstrap.sh" --config-only
-    [ "$status" = 0 ]
-    [ "$(cat "$HOME/.local/state/dotfiles-lite/manager")" = sh ]
+    [ "$status" != 0 ]
+    [ ! -f "$HOME/.profile" ]
+    run sh "$REPO/bootstrap.sh" --config-only --manager auto
+    [ "$status" != 0 ]
     rm "$DOTFILES_TEST_ROOT/bin/chezmoi"
+    [ -n "$REAL_CHEZMOI" ] || skip 'chezmoi not installed on test host'
     run sh "$REPO/bootstrap.sh" --config-only
     [ "$status" = 0 ]
-    [ "$(cat "$HOME/.local/state/dotfiles-lite/manager")" = sh ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/manager")" = chezmoi ]
 }
 
 @test "chezmoi and sh deploy identical configuration from the same source" {
@@ -256,7 +264,7 @@ EOF
     [ ! -e "$HOME/.profile" ]
 }
 
-@test "bootstrap keeps a source snapshot free of an empty Git repository" {
+@test "explicit offline config-only keeps a snapshot free of empty Git metadata" {
     [ -n "$REAL_CHEZMOI" ] || skip 'chezmoi not installed on test host'
     source_copy="$BATS_TEST_TMPDIR/source-snapshot"
     mkdir -p "$source_copy"
@@ -330,4 +338,112 @@ EOF
     grep -q 'opkg install' "$DOTFILES_TEST_ROOT/calls"
     ! grep -q upgrade "$DOTFILES_TEST_ROOT/calls"
     [ ! -e "$DOTFILES_TEST_ROOT/etc/opkg.conf" ]
+}
+
+
+make_git_fixture() {
+    export DOTFILES_TEST_GIT_REMOTE="$BATS_TEST_TMPDIR/upstream"
+    mkdir -p "$DOTFILES_TEST_GIT_REMOTE"
+    cp -R "$REPO/scripts" "$REPO/config" "$REPO/home" "$REPO/.chezmoiroot" "$DOTFILES_TEST_GIT_REMOTE/"
+    git init -q "$DOTFILES_TEST_GIT_REMOTE"
+    git -C "$DOTFILES_TEST_GIT_REMOTE" checkout -q -b main
+    git -C "$DOTFILES_TEST_GIT_REMOTE" add .
+    git -C "$DOTFILES_TEST_GIT_REMOTE" commit -qm initial
+    source_copy="$BATS_TEST_TMPDIR/source with ' quote"
+    mkdir -p "$source_copy"
+    cp -R "$DOTFILES_TEST_GIT_REMOTE/." "$source_copy/"
+    rm -rf "$source_copy/.git"
+}
+
+@test "snapshot migrates to tracking Git then plain chezmoi update pulls and applies" {
+    [ -n "$REAL_CHEZMOI" ] || skip 'chezmoi not installed on test host'
+    make_git_fixture
+    echo custom-source-note >"$source_copy/personal-note"
+    run sh "$source_copy/scripts/manage.sh" --package-network direct
+    [ "$status" = 0 ]
+    [ "$(git -C "$source_copy" symbolic-ref --short HEAD)" = main ]
+    [ "$(git -C "$source_copy" rev-parse --abbrev-ref '@{u}')" = origin/main ]
+    [ -z "$(git -C "$source_copy" status --porcelain)" ]
+    [ "$(cat "$BATS_TEST_TMPDIR"/.dotfiles-*.snapshot.*/source/personal-note)" = custom-source-note ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/manager")" = chezmoi ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/package-network")" = direct ]
+    printf '\nexport DOTFILES_UPDATE_TEST=updated\n' >>"$DOTFILES_TEST_GIT_REMOTE/home/dot_config/dotfiles-lite/profile.sh"
+    git -C "$DOTFILES_TEST_GIT_REMOTE" add .
+    git -C "$DOTFILES_TEST_GIT_REMOTE" commit -qm update
+    run "$REAL_CHEZMOI" update --no-pager
+    [ "$status" = 0 ]
+    grep -q DOTFILES_UPDATE_TEST=updated "$HOME/.config/dotfiles-lite/profile.sh"
+    [ "$(git -C "$source_copy" rev-parse HEAD)" = "$(git -C "$DOTFILES_TEST_GIT_REMOTE" rev-parse HEAD)" ]
+    # A one-command connectivity override must not replace the saved policy.
+    run env DOTFILES_PACKAGE_NETWORK=inherit "$REAL_CHEZMOI" apply
+    [ "$status" = 0 ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/package-network")" = direct ]
+    # A local source edit conflicting with upstream must survive a failed update.
+    printf 'local-edit\n' >"$source_copy/home/dot_config/dotfiles-lite/prompt.sh"
+    printf '\n# upstream-change\n' >>"$DOTFILES_TEST_GIT_REMOTE/home/dot_config/dotfiles-lite/prompt.sh"
+    git -C "$DOTFILES_TEST_GIT_REMOTE" add .
+    git -C "$DOTFILES_TEST_GIT_REMOTE" commit -qm conflict
+    cp "$HOME/.config/dotfiles-lite/prompt.sh" "$BATS_TEST_TMPDIR/prompt-before"
+    run "$REAL_CHEZMOI" update --no-pager
+    [ "$status" != 0 ]
+    [ "$(cat "$source_copy/home/dot_config/dotfiles-lite/prompt.sh")" = local-edit ]
+    cmp "$HOME/.config/dotfiles-lite/prompt.sh" "$BATS_TEST_TMPDIR/prompt-before"
+    # An offline pull must fail before the application hook can alter HOME.
+    git -C "$source_copy" remote set-url origin "$BATS_TEST_TMPDIR/missing"
+    cp "$HOME/.profile" "$BATS_TEST_TMPDIR/profile-before"
+    run "$REAL_CHEZMOI" update --no-pager
+    [ "$status" != 0 ]
+    cmp "$HOME/.profile" "$BATS_TEST_TMPDIR/profile-before"
+}
+
+@test "failed Git acquisition preserves snapshot and leaves home unconfigured" {
+    [ -n "$REAL_CHEZMOI" ] || skip 'chezmoi not installed on test host'
+    make_git_fixture
+    export DOTFILES_TEST_GIT_REMOTE="$BATS_TEST_TMPDIR/missing"
+    echo preserved >"$source_copy/personal-note"
+    run sh "$source_copy/scripts/manage.sh"
+    [ "$status" != 0 ]
+    [ "$(cat "$source_copy/personal-note")" = preserved ]
+    [ ! -e "$source_copy/.git" ]
+    [ ! -e "$HOME/.profile" ]
+}
+
+@test "legacy same-source config gains update command and preserves custom settings" {
+    [ -n "$REAL_CHEZMOI" ] || skip 'chezmoi not installed on test host'
+    mkdir -p "$(dirname "$CHEZMOI_CONFIG")"
+    printf 'sourceDir = "%s"\n# personal comment\n[data]\n personal = "value"\n' "$REPO" >"$CHEZMOI_CONFIG"
+    run sh "$REPO/bootstrap.sh" --config-only
+    [ "$status" = 0 ]
+    grep -q '# personal comment' "$CHEZMOI_CONFIG"
+    grep -q '^\[update\]' "$CHEZMOI_CONFIG"
+    run "$REAL_CHEZMOI" execute-template '{{ .personal }}'
+    [ "$status" = 0 ]
+    [ "$output" = value ]
+    cp "$CHEZMOI_CONFIG" "$BATS_TEST_TMPDIR/config-first"
+    run sh "$REPO/bootstrap.sh" --config-only
+    [ "$status" = 0 ]
+    cmp "$CHEZMOI_CONFIG" "$BATS_TEST_TMPDIR/config-first"
+}
+
+@test "custom chezmoi update command is preserved" {
+    [ -n "$REAL_CHEZMOI" ] || skip 'chezmoi not installed on test host'
+    mkdir -p "$(dirname "$CHEZMOI_CONFIG")"
+    printf 'sourceDir = "%s"\n[update]\n command = "custom-update"\n' "$REPO" >"$CHEZMOI_CONFIG"
+    cp "$CHEZMOI_CONFIG" "$BATS_TEST_TMPDIR/config-before"
+    run sh "$REPO/bootstrap.sh" --config-only
+    [ "$status" = 0 ]
+    cmp "$CHEZMOI_CONFIG" "$BATS_TEST_TMPDIR/config-before"
+}
+
+
+@test "sh to chezmoi migration preserves a locally edited managed file" {
+    [ -n "$REAL_CHEZMOI" ] || skip 'chezmoi not installed on test host'
+    run sh "$REPO/bootstrap.sh" --manager sh --config-only
+    [ "$status" = 0 ]
+    printf '# intentional local change\n' >>"$HOME/.config/dotfiles-lite/profile.sh"
+    cp "$HOME/.config/dotfiles-lite/profile.sh" "$BATS_TEST_TMPDIR/local-edit"
+    run sh "$REPO/bootstrap.sh" --config-only
+    [ "$status" != 0 ]
+    cmp "$HOME/.config/dotfiles-lite/profile.sh" "$BATS_TEST_TMPDIR/local-edit"
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/manager")" = sh ]
 }

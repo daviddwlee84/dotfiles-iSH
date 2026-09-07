@@ -1,1 +1,2 @@
 sourceDir = {{ .chezmoi.workingTree | quote }}
+{{ includeTemplate (joinPath .chezmoi.workingTree "config" "chezmoi-update.toml.tmpl") . }}

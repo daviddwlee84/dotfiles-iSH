@@ -1,96 +1,117 @@
 # Setup and management
 
-This repository manages a small personal shell environment. The bootstrap runs
-with `/bin/sh` (BusyBox ash); it does not require Bash, Python, Ansible or just.
+**chezmoi is the default on both lightweight platforms.** Bootstrap is the first
+installation/migration entrypoint; daily configuration updates use chezmoi.
+The target needs only `/bin/sh` (BusyBox ash) and an HTTPS downloader initially.
 
-## First installation
+## First installation or migration from the old sh installer
 
-Run on the target device:
+Download the current entrypoint on the device, even if an older bootstrap exists:
 
 ```sh
 wget -O bootstrap.sh https://raw.githubusercontent.com/daviddwlee84/dotfiles-iSH/main/bootstrap.sh
 sh bootstrap.sh
+. ~/.profile
 ```
 
-If curl is already available, `curl -fLsS -o bootstrap.sh URL` is equivalent.
-On OpenWrt without wget, use `uclient-fetch -O bootstrap.sh URL`. These clients
-must support HTTPS and trust the server certificate; never disable verification.
-If download tools or connectivity are unavailable, copy an unpacked checkout to
-the device and run its `bootstrap.sh`. The standalone entrypoint downloads a
-GitHub source snapshot into `~/.local/share/dotfiles-iSH`; it reuses an existing
-source and never replaces a customized checkout. `DOTFILES_REF` may name a tag
-or commit instead of `main` when fetching a new source.
-
-## Choose a manager
+Then use the familiar commands:
 
 ```sh
-sh bootstrap.sh --dry-run
-sh bootstrap.sh --manager sh
-sh bootstrap.sh --manager chezmoi
-sh bootstrap.sh --config-only --manager sh
-sh bootstrap.sh --doctor
+chezmoi diff
+chezmoi apply
+chezmoi update
 ```
 
-`auto` is the default: iSH selects sh; OpenWrt uses a working chezmoi or attempts
-the locked official binary. If chezmoi cannot be obtained on a first OpenWrt
-setup, configuration uses sh instead. An explicit `--manager chezmoi` failure
-stops. Successful selection is recorded in `~/.local/state/dotfiles-lite/manager`;
-later auto runs retain it. Switching managers requires the explicit flag.
-A failing config apply never silently switches managers.
+`chezmoi update` pulls the source with `git pull --ff-only`, installs missing
+baseline/selected optional packages via native apk/opkg, then applies the home
+configuration. It does not upgrade existing packages or working tool binaries.
+A failed pull stops before applying. Divergent commits or conflicting source edits
+remain for you to resolve; the updater does not auto-stash, commit or push.
 
-`--config-only` skips packages and downloads, allowing offline configuration.
-`--dry-run` is a read-only manifest preview (not a line-by-line diff). For a real
-chezmoi configuration diff after setup, run `chezmoi diff`. sh preserves conflicting
-managed edits and asks you to compare the source with the target before retrying.
+The standalone entrypoint obtains a temporary source snapshot for installation
+prerequisites, then creates a real Git checkout at
+`~/.local/share/dotfiles-iSH`, tracking `origin/main`. Existing snapshots are
+retained in printed sibling backup paths, including any custom source files;
+the newly active source is the upstream checkout. Review/copy intentional source
+customizations from the backup before updating them with chezmoi. Existing Git
+checkouts are reused, never replaced. Older sh installations migrate to chezmoi
+when run through the current entrypoint. The legacy `--update-source` flag remains
+accepted for snapshot refresh but is unnecessary for daily updates.
 
-For a compatible modern chezmoi installation (verified with 2.72.1), the repository is also directly usable. Alpine 3.14's 2.0.16 lacks the source-layout features; use bootstrap instead of this direct command:
+If curl is available, `curl -fLsS -o bootstrap.sh URL` is equivalent; OpenWrt can
+also use `uclient-fetch -O bootstrap.sh URL`. Keep TLS verification enabled.
+`DOTFILES_REF` can pin a tag/commit instead of main; that produces a detached
+checkout, so return to a tracking branch before using `chezmoi update`.
+
+## Options and offline use
+
+```sh
+sh bootstrap.sh --with starship
+sh bootstrap.sh --with dev,starship
+sh bootstrap.sh --dry-run
+sh bootstrap.sh --doctor
+sh bootstrap.sh --manager sh --config-only
+```
+
+The default manager is `chezmoi`; `auto` is a compatibility alias for it. A usable
+installed chezmoi is retained, otherwise bootstrap downloads the locked official
+binary and verifies its hash and bounded capability probe. Failure stops with an
+explicit `--manager sh` recovery suggestion; it never silently selects sh.
+Alpine 3.14's native chezmoi 2.0.16 lacks this repository's source-layout features.
+The locked modern i386 release remains experimental until tested on actual iSH.
+
+Use `--manager sh` for an explicit lightweight alternative. Both managers deploy
+the same home files. After any later default bootstrap run, chezmoi is selected
+again. `--config-only` skips packages, tool downloads and Git migration; from an
+existing copied source it works offline. An offline snapshot can be applied but
+cannot use `chezmoi update` until an online bootstrap prepares Git.
+`--dry-run` previews the manifest without writes; use `chezmoi diff` for real diffs.
+
+Optional choices are saved in `~/.local/state/dotfiles-lite/options`. Omitting
+`--with` retains them; an explicit list replaces the selection without uninstalling
+anything. OpenWrt also accepts `herdr,specstory,codex`. Optional failure returns
+nonzero after preserving a working baseline; baseline-package failure stops
+before configuration. Packages already successfully added remain installed.
+
+## Source and package connectivity
+
+`--source-network inherit|direct|proxy` controls Git and tool downloads; proxy
+requires an existing authenticated Nikki on OpenWrt. `--package-network
+inherit|direct` independently controls native package calls. Defaults are inherit.
+Successful setup saves these **nonsecret choices** for plain `chezmoi update`;
+proxy credentials are read only at execution time and never stored in dotfiles.
+
+`DOTFILES_SOURCE_NETWORK` and `DOTFILES_PACKAGE_NETWORK` override the saved choice
+for a command. To change the saved preference, rerun the source's bootstrap with
+the desired flags. Existing custom `[update]` configuration is preserved; the
+network-aware updater is configured automatically only when no custom update
+section exists. See the OpenWrt network guide for initial GitHub reachability.
+
+## What chezmoi owns
+
+`.chezmoiroot` selects only `home/`. Repository metadata and scripts stay in the
+source checkout. `~/.config/chezmoi/chezmoi.toml` points to that checkout and
+selects its update script. Older same-source configs gain only the update section,
+with a backup; unrelated chezmoi sources are never taken over.
+
+`~/.profile` is the login-shell entrypoint. The installer preserves its existing
+content and appends one block loading `~/.config/dotfiles-lite/profile.sh`.
+That fragment adds `~/.local/bin` to PATH, defaults EDITOR/PAGER, loads interactive
+aliases and the prompt, then loads your optional `~/.config/dotfiles-lite/local.sh`
+last. Put personal overrides there; it is never created or tracked. No download,
+package installation or chezmoi update runs when you open a shell.
+
+SSH, tmux and Starship configs are create-once seeds. Git identity and credentials
+remain yours. See [Shell and Starship](shell.md) for ash versus Bash.
+
+With an already compatible chezmoi and working Git/network, direct initialization
+also works and uses the same package/apply hooks:
 
 ```sh
 chezmoi init --apply https://github.com/daviddwlee84/dotfiles-iSH.git
 ```
 
-The official one-line installation path is supported when curl and network access
-already work. This path has no sh fallback because chezmoi owns that invocation:
-
-```sh
-GITHUB_USERNAME=daviddwlee84
-sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin" init --apply "https://github.com/$GITHUB_USERNAME/dotfiles-iSH.git"
-```
-
-The official installer tracks upstream; `bootstrap.sh` instead verifies the
-repo's locked chezmoi asset. Existing unrelated chezmoi configuration is never
-taken over by bootstrap. Use sh or explicitly migrate that source yourself.
-
-## Ownership and updates
-
-Only `home/` is a chezmoi source (`.chezmoiroot`). The sh path deploys the exact
-same source files through `config/files.list`; README, history, skills, scripts,
-locks and backlog never enter HOME. A managed profile fragment is sourced from
-an appended `.profile` block. SSH and tmux are first-run seeds; Git identity and
-credentials are left to you. Put personal overrides in
-`~/.config/dotfiles-lite/local.sh` (not created or tracked).
-
-Installs do not upgrade existing packages or working tool binaries. Source
-updates are explicit: `git pull --ff-only` in a Git checkout; for a snapshot,
-use a newly downloaded bootstrap with --update-source to retain the old source
-in a sibling backup before replacing it. Updating configs and upgrading binaries are separate decisions.
-Refresh version/URL/hash/member/size together in `config/assets.lock`, validate
-in CI, then explicitly replace an old binary when ready. A Herdr update belongs
-outside any Herdr pane and must follow its own session-preserving update procedure.
-
-Optional choices are supplied with `--with dev` or `--with starship` (OpenWrt also accepts
-`herdr,specstory,codex`). Repeated flags are accepted. Without `--with`, prior
-choices are retained; an explicit list replaces the recorded selection, without
-uninstalling anything. Optional failure returns nonzero after preserving a working
-baseline; baseline-package failure stops before configuration. Installation is
-not an atomic package transaction; packages already added remain installed.
-
-See [Shell and Starship](shell.md) for the ash prompt, optional Bash setup,
-chezmoi package compatibility and explicit snapshot updates.
-
-`--package-network direct` (or `DOTFILES_PACKAGE_NETWORK=direct`) clears app proxy
-variables only inside package-manager calls; binary/source downloads retain the
-caller environment. Default `inherit` never silently changes the chosen route.
-
-Bootstrap renders its sourceDir config and applies it without init, so a downloaded snapshot stays a snapshot.
-The official repo-URL initialization still creates a normal Git checkout.
+Upgrading tool binaries remains explicit: maintainers update the version, URL,
+hash, member and size in `config/assets.lock` together and validate in CI. Existing
+working versions are kept. Herdr upgrades belong outside Herdr panes and follow
+upstream's session-preserving procedure.

@@ -25,16 +25,17 @@ in the emulator. The v3.14 community index contains Starship 0.54.0 and chezmoi
 remain experimental until tested on the actual device. The ash prompt remains
 usable even when an optional binary fails.
 
-To update a previously downloaded source snapshot, first download the new standalone
-bootstrap and run `sh bootstrap.sh --update-source --with starship`. The flag must
-come first. It preserves the previous snapshot in a printed sibling backup path;
-Git checkouts are never replaced (use git pull --ff-only there).
+ash is the lightweight Almquist shell implementation in BusyBox. It interprets
+commands and POSIX-style shell scripts. It is independent of chezmoi: chezmoi
+manages files, while ash runs your commands. The iSH Alpine image and OpenWrt
+use ash by default; Bash is optional.
 
-The initial iSH `Configuration manager: sh` output is expected: auto retains the
-chosen sh manager. To select chezmoi explicitly, use
-`sh bootstrap.sh --manager chezmoi`. The installer uses a compatible locked i386
-binary; Alpine 3.14's older package predates source features this repository uses.
-A version-only probe no longer accepts that incompatible installation.
+A login ash reads system `/etc/profile`, then your `~/.profile`. Our managed block
+loads the small shell fragment; it does not run installation/update commands.
+See [setup](setup.md) for the profile contents and one-time migration. Both
+platforms now default to chezmoi; subsequent configuration updates are simply
+`chezmoi update`. Alpine's old native chezmoi package is not accepted just because
+`--version` works: the source-layout capability must also pass.
 
 References: [Starship guide](https://starship.rs/guide/),
 [Starship releases](https://github.com/starship/starship/releases),

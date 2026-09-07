@@ -21,14 +21,15 @@ OpenWrt 使用鎖定的 ARM64／x86_64 musl release；iSH 使用目前 Alpine fe
 與 chezmoi 2.0.16；有套件不等於實機驗證，iSH 的 Starship／chezmoi 在實測前仍屬實驗性。
 即使選裝 binary 失敗，ash prompt 仍可使用。
 
-更新既有 snapshot 時，先重新下載新版獨立 bootstrap，再執行
-`sh bootstrap.sh --update-source --with starship`，更新旗標須放第一個。
-舊 snapshot 會完整保存在顯示的相鄰 backup 路徑。Git checkout 不替換，請自行 `git pull --ff-only`。
+ash 是 BusyBox 提供的精簡 Almquist shell，負責解讀命令與 POSIX 風格的 shell script。
+它和 chezmoi 分工不同：chezmoi 管理設定檔，ash 執行你輸入的命令。
+iSH 隨附 Alpine 和 OpenWrt 預設使用 ash，Bash 是選裝。
 
-iSH 首次顯示 `Configuration manager: sh` 是原設計：auto 沿用已選的 sh。
-要明確改用 chezmoi，可執行 `sh bootstrap.sh --manager chezmoi`；installer 會使用
-相容的鎖定 i386 binary。Alpine 3.14 的舊套件早於本 repo 使用的 source features，
-現在不會只因 `--version` 成功就誤認為能管理這份來源。
+登入 ash 會先讀系統 `/etc/profile`，再讀你的 `~/.profile`。
+我們加入的區塊只載入精簡 shell 設定，不執行安裝或更新。
+完整 profile 內容和一次性遷移方式見 [安裝與管理](setup.md)。
+兩平台目前都預設 chezmoi，日常直接 `chezmoi update`。
+Alpine 的舊原生 chezmoi 不能只因 `--version` 成功就視為相容，還要通過 source layout 能力檢查。
 
 參考：[Starship guide](https://starship.rs/guide/)、
 [Starship releases](https://github.com/starship/starship/releases)、

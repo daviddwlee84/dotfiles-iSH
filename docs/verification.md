@@ -37,3 +37,7 @@ are platform-specific. Maintainer commands and release assets never auto-upgrade
 
 chezmoi x86_64 uses the explicitly named `linux-musl_amd64` asset; upstream
 `linux_amd64` aliases the glibc build and cannot be used as the router default.
+
+Git integration fixtures additionally cover snapshot backups, tracking main, a real
+upstream commit followed by plain chezmoi update/apply, offline failure, and
+preserving existing/custom chezmoi configuration.
