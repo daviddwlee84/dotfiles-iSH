@@ -258,7 +258,22 @@ apply_chezmoi() {
         esac
         chezmoi --config "$config" apply --source "$REPO" --destination "$HOME" --exclude=scripts || return 1
     else
-        chezmoi --config "$config" init --source "$REPO" --destination "$HOME" --apply --exclude=scripts || return 1
+        # init always creates Git metadata, even for a downloaded snapshot.
+        # Render our tiny sourceDir config first, then apply without initializing Git.
+        mkdir -p "$(dirname "$config")"
+        config_tmp=$(mktemp "$(dirname "$config")/.dotfiles-chezmoi.XXXXXX")
+        if ! chezmoi --config "$config" execute-template --source "$REPO" --destination "$HOME" <"$REPO/home/.chezmoi.toml.tmpl" >"$config_tmp"; then
+            rm -f "$config_tmp"; return 1
+        fi
+        chmod 600 "$config_tmp"
+        if ! chezmoi --config "$config_tmp" --config-format toml apply --source "$REPO" --destination "$HOME" --exclude=scripts; then
+            rm -f "$config_tmp"; return 1
+        fi
+        # Do not clobber a configuration created concurrently by another writer.
+        if ! (umask 077; set -C; cat "$config_tmp" >"$config"); then
+            rm -f "$config_tmp"; return 1
+        fi
+        rm -f "$config_tmp"
     fi
     # Enables a later explicit sh switch without clobbering intervening local edits.
     while IFS='|' read -r kind source target mode; do

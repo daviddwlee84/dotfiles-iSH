@@ -256,6 +256,17 @@ EOF
     [ ! -e "$HOME/.profile" ]
 }
 
+@test "bootstrap keeps a source snapshot free of an empty Git repository" {
+    [ -n "$REAL_CHEZMOI" ] || skip 'chezmoi not installed on test host'
+    source_copy="$BATS_TEST_TMPDIR/source-snapshot"
+    mkdir -p "$source_copy"
+    cp -R "$REPO/scripts" "$REPO/config" "$REPO/home" "$REPO/.chezmoiroot" "$source_copy/"
+    run sh "$source_copy/scripts/manage.sh" --manager chezmoi --config-only
+    [ "$status" = 0 ]
+    [ ! -e "$source_copy/.git" ]
+    [ -f "$HOME/.profile" ]
+}
+
 @test "direct chezmoi init --apply runs native hooks from paths with spaces and quotes" {
     [ -n "$REAL_CHEZMOI" ] || skip 'chezmoi not installed on test host'
     source_copy="$BATS_TEST_TMPDIR/source with ' quote"

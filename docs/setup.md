@@ -43,7 +43,7 @@ A failing config apply never silently switches managers.
 chezmoi configuration diff after setup, run `chezmoi diff`. sh preserves conflicting
 managed edits and asks you to compare the source with the target before retrying.
 
-For an existing chezmoi installation, the repository is also directly usable:
+For a compatible modern chezmoi installation (verified with 2.72.1), the repository is also directly usable. Alpine 3.14's 2.0.16 lacks the source-layout features; use bootstrap instead of this direct command:
 
 ```sh
 chezmoi init --apply https://github.com/daviddwlee84/dotfiles-iSH.git
@@ -91,3 +91,6 @@ chezmoi package compatibility and explicit snapshot updates.
 `--package-network direct` (or `DOTFILES_PACKAGE_NETWORK=direct`) clears app proxy
 variables only inside package-manager calls; binary/source downloads retain the
 caller environment. Default `inherit` never silently changes the chosen route.
+
+Bootstrap renders its sourceDir config and applies it without init, so a downloaded snapshot stays a snapshot.
+The official repo-URL initialization still creates a normal Git checkout.

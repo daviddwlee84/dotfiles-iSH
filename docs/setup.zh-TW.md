@@ -39,7 +39,7 @@ sh bootstrap.sh --doctor
 預覽，不是逐行 diff；chezmoi 安裝完成後可用 `chezmoi diff` 看真正差異。
 sh 遇到受管理檔案的客製變更會保留並停止，請先比對來源與目標再重跑。
 
-已有 chezmoi 時也可直接使用：
+已有相容的現代 chezmoi（已驗證 2.72.1）時可直接使用；Alpine 3.14 的 2.0.16 不支援此 source layout，請走 bootstrap，不要用下面的直接指令：
 
 ```sh
 chezmoi init --apply https://github.com/daviddwlee84/dotfiles-iSH.git
@@ -78,3 +78,6 @@ ash prompt、選裝 Bash、chezmoi 套件相容性與 snapshot 更新方式見 [
 
 `--package-network direct`（或 `DOTFILES_PACKAGE_NETWORK=direct`）只在套件管理器呼叫內
 清除 app proxy 變數；binary／source 下載仍沿用外層環境。預設 inherit，不會偷偷改道。
+
+Bootstrap 先 render sourceDir config 再 apply，避開 init 自動將 snapshot 變成空 Git repo 的行為。
+直接使用官方 repo-URL 初始化仍會建立正常 Git checkout。
