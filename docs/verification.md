@@ -28,9 +28,8 @@ free RAM/storage and exact tool versions. Then check:
    private prompts belong in logs or the public repository. Do not disable
    agent isolation to turn an unsupported runtime into a claimed success.
 
-**Current status:** no iPhone or Raspberry Pi deployment was performed by this
-repository's bootstrap during the extraction. Host/CI checks are recorded separately
-from device acceptance. Pending experiments are indexed in the repository TODO.
+**Current status (2026-09-07):** the user confirmed the sh baseline on iSH's
+v3.14 snapshot. New chezmoi and Starship paths still await iSH device acceptance.
 
 The shared shell core/tests/assets lock are copied in the two lightweight repos;
 changes to their shared behavior must be mirrored. Package feeds and user configs

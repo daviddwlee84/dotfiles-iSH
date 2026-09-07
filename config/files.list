@@ -3,3 +3,6 @@ modify|home/modify_dot_profile|.profile|644
 seed|home/private_dot_ssh/create_config|.ssh/config|600
 seed|home/create_dot_tmux.conf|.tmux.conf|644
 managed|home/dot_config/dotfiles-lite/ish.sh|.config/dotfiles-lite/ish.sh|644
+managed|home/dot_config/dotfiles-lite/prompt.sh|.config/dotfiles-lite/prompt.sh|644
+modify|home/modify_dot_bashrc|.bashrc|644
+seed|home/dot_config/create_starship.toml|.config/starship.toml|644

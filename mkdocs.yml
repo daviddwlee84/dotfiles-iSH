@@ -18,6 +18,7 @@ plugins:
           nav_translations:
             Home: 首頁
             Setup: 安裝與管理
+            Shell and Starship: Shell 與 Starship
             Tools: 工具與支援
             Verification: 驗證與維護
             iOS terminals: iOS 終端機
@@ -25,5 +26,6 @@ nav:
   - Home: index.md
   - Setup: setup.md
   - Tools: tools.md
+  - Shell and Starship: shell.md
   - Verification: verification.md
   - iOS terminals: ios-terminals.md

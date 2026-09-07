@@ -63,13 +63,25 @@ sha256_file() {
 }
 
 probe() {
-    command -v timeout >/dev/null 2>&1 || { warn 'BusyBox timeout is required for bounded binary checks'; return 1; }
+    command -v timeout >/dev/null 2>&1 || { warn 'timeout is required (OpenWrt: install coreutils-timeout) for bounded binary checks'; return 1; }
     timeout 15 "$1" --version >/dev/null 2>&1
 }
 
+# The Alpine 3.14 chezmoi package runs, but predates .chezmoiroot/workingTree.
+# Test the capability used by our source instead of treating --version as enough.
+tool_ready() (
+    tool_name=$1
+    binary=$2
+    probe "$binary" || exit 1
+    if [ "$tool_name" = chezmoi ]; then
+        capability=$(timeout 15 "$binary" execute-template '{{ if hasKey .chezmoi "workingTree" }}supported{{ end }}' 2>/dev/null) || exit 1
+        [ "$capability" = supported ] || exit 1
+    fi
+)
+
 install_asset() (
     tool=$1
-    if command -v "$tool" >/dev/null 2>&1 && probe "$(command -v "$tool")"; then
+    if command -v "$tool" >/dev/null 2>&1 && tool_ready "$tool" "$(command -v "$tool")"; then
         say "$tool already runs; keeping the installed version (install-only)."
         exit 0
     fi
@@ -96,7 +108,7 @@ EOF
         *) warn "Unknown archive format: $format"; exit 1 ;;
     esac
     chmod 755 "$asset_tmp/candidate"
-    probe "$asset_tmp/candidate" || { warn "$tool failed its bounded --version check; not installed"; exit 1; }
+    tool_ready "$tool" "$asset_tmp/candidate" || { warn "$tool failed its bounded compatibility check; not installed"; exit 1; }
     mkdir -p "$HOME/.local/bin"
     [ ! -L "$HOME/.local/bin/$tool" ] || { warn "Refusing to replace symlink: $tool"; exit 1; }
     # Same-filesystem rename keeps a previous executable intact on copy failure.
@@ -115,6 +127,13 @@ package_present() {
 }
 
 install_packages() (
+    # Explicit per-stage choice: native OpenWrt apk-fetch/wget does not support
+    # this authenticated proxy in the same way curl does. Never switch silently.
+    if [ "${PACKAGE_NETWORK:-inherit}" = direct ]; then
+        unset http_proxy https_proxy all_proxy ftp_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY FTP_PROXY no_proxy NO_PROXY
+        no_proxy='*'; NO_PROXY='*'
+        export no_proxy NO_PROXY
+    fi
     manifest=$1
     missing=''
     while IFS= read -r package || [ -n "$package" ]; do
@@ -133,7 +152,7 @@ install_packages() (
 validate_options() {
     for option in $WITH; do
         case "$option" in
-            dev) ;;
+            dev|starship) ;;
             herdr|specstory|codex) [ "$PLATFORM" = openwrt ] || die "$option is remote-only on iSH; no local installer is offered." ;;
             *) die "Unknown optional group/tool: $option" ;;
         esac
@@ -147,6 +166,12 @@ packages() {
     for option in $WITH; do
         case "$option" in
             dev) install_packages "$REPO/config/packages-dev.txt" || OPTIONAL_FAILED=1 ;;
+            starship)
+                if install_packages "$REPO/config/packages-starship.txt"; then
+                    if [ "$PLATFORM" = ish ]; then
+                        probe "$(command -v starship)" || OPTIONAL_FAILED=1
+                    else install_asset starship || OPTIONAL_FAILED=1; fi
+                else OPTIONAL_FAILED=1; fi ;;
             codex)
                 warn 'Codex is experimental on OpenWrt. Check free RAM; no swap or sandbox policy is changed.'
                 if install_packages "$REPO/config/packages-codex.txt"; then
@@ -166,11 +191,11 @@ choose_manager() {
     case "$SELECTED" in auto|chezmoi|sh) ;; *) die 'Invalid stored/requested manager' ;; esac
     if [ "$SELECTED" = auto ]; then
         if [ "$PLATFORM" = ish ]; then SELECTED='sh'
-        elif command -v chezmoi >/dev/null 2>&1 && probe "$(command -v chezmoi)"; then SELECTED=chezmoi
+        elif command -v chezmoi >/dev/null 2>&1 && tool_ready chezmoi "$(command -v chezmoi)"; then SELECTED=chezmoi
         elif [ "$CONFIG_ONLY" = 0 ] && install_asset chezmoi; then SELECTED=chezmoi
         else SELECTED='sh'; warn 'chezmoi unavailable; first setup will use sh before any configuration writes.'; fi
     elif [ "$SELECTED" = chezmoi ]; then
-        if ! command -v chezmoi >/dev/null 2>&1 || ! probe "$(command -v chezmoi)"; then
+        if ! command -v chezmoi >/dev/null 2>&1 || ! tool_ready chezmoi "$(command -v chezmoi)"; then
             [ "$CONFIG_ONLY" = 0 ] && install_asset chezmoi || die 'chezmoi unavailable. Retry explicitly with --manager sh.'
         fi
     fi
@@ -260,10 +285,10 @@ doctor() {
         if command -v "$tool" >/dev/null 2>&1; then say "$tool: $(command -v "$tool")"
         else warn "$tool: missing"; failed=1; fi
     done
-    for tool in chezmoi herdr specstory codex; do
+    for tool in chezmoi starship herdr specstory codex; do
         if command -v "$tool" >/dev/null 2>&1; then
-            if probe "$(command -v "$tool")"; then say "$tool: version probe passed; device workflow unverified"
-            else warn "$tool: version probe failed"; failed=1; fi
+            if tool_ready "$tool" "$(command -v "$tool")"; then say "$tool: compatibility probe passed; device workflow unverified"
+            else warn "$tool: compatibility probe failed"; failed=1; fi
         else say "$tool: not installed"; fi
     done
     return "$failed"

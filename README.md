@@ -32,3 +32,6 @@ Backward-looking knowledge — past traps and non-obvious debugging — lives in
 message and land on the root cause + workaround instead of re-debugging from
 scratch.
 <!-- project-knowledge-harness:readme-roadmap --> (end)
+
+Shell: ash now has a colored builtin prompt. Opt in with `--with starship`,
+then enter `bash` for Starship; see [shell](docs/shell.md) / [繁中](docs/shell.zh-TW.md).

@@ -10,9 +10,11 @@ WITH=''
 WITH_SET=0
 DRY_RUN=0
 CONFIG_ONLY=0
+PACKAGE_NETWORK=${DOTFILES_PACKAGE_NETWORK:-inherit}
 ACTION=setup
 while [ "$#" -gt 0 ]; do
     case "$1" in
+        --package-network) [ "$#" -ge 2 ] || die '--package-network requires a value'; PACKAGE_NETWORK=$2; shift 2 ;;
         --manager) [ "$#" -ge 2 ] || die '--manager requires a value'; MANAGER=$2; shift 2 ;;
         --with) [ "$#" -ge 2 ] || die '--with requires a value'; WITH="$WITH $(printf '%s' "$2" | tr ',' ' ')"; WITH_SET=1; shift 2 ;;
         --dry-run) DRY_RUN=1; shift ;;
@@ -21,12 +23,13 @@ while [ "$#" -gt 0 ]; do
         --prepare-chezmoi) ACTION=prepare; MANAGER=chezmoi; shift ;;
         --record-chezmoi) ACTION=record; shift ;;
         --help|-h)
-            printf '%s\n' 'Usage: sh bootstrap.sh [--manager auto|chezmoi|sh] [--with dev,herdr,specstory,codex] [--config-only] [--dry-run] [--doctor]' 'Default: baseline packages only; optional agent tools are OpenWrt-only.'
+            printf '%s\n' 'Usage: sh bootstrap.sh [--manager auto|chezmoi|sh] [--with dev,starship,herdr,specstory,codex] [--package-network inherit|direct] [--config-only] [--dry-run] [--doctor]' 'Default: baseline packages only; optional agent tools are OpenWrt-only.'
             exit 0 ;;
         *) die "Unknown argument: $1" ;;
     esac
 done
 case "$MANAGER" in auto|sh|chezmoi) ;; *) die 'Expected --manager auto|sh|chezmoi' ;; esac
+case "$PACKAGE_NETWORK" in inherit|direct) ;; *) die 'Expected --package-network inherit|direct' ;; esac
 context
 if [ "$WITH_SET" = 0 ] && [ -r "$STATE/options" ]; then WITH=$(cat "$STATE/options"); fi
 validate_options

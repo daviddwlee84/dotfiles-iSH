@@ -84,6 +84,45 @@ EOF
     [ ! -e "$DOTFILES_TEST_ROOT/calls" ]
 }
 
+@test "explicit snapshot update preserves the old source and refuses Git checkouts" {
+    repository=$(basename "$REPO")
+    standalone="$BATS_TEST_TMPDIR/standalone"
+    destination="$HOME/.local/share/$repository"
+    mkdir -p "$standalone" "$destination/scripts" "$destination/config" "$BATS_TEST_TMPDIR/archive/root/scripts" "$BATS_TEST_TMPDIR/archive/root/config"
+    cp "$REPO/bootstrap.sh" "$standalone/bootstrap.sh"
+    printf 'old source\n' >"$destination/custom-note"
+    printf '%s\n' "$TEST_PLATFORM" >"$destination/config/platform"
+    printf '#!/bin/sh\nexit 0\n' >"$destination/scripts/manage.sh"
+    printf '#!/bin/sh\necho updated-source\n' >"$BATS_TEST_TMPDIR/archive/root/scripts/manage.sh"
+    printf '%s\n' "$TEST_PLATFORM" >"$BATS_TEST_TMPDIR/archive/root/config/platform"
+    tar -czf "$DOTFILES_TEST_ROOT/new-source.tar.gz" -C "$BATS_TEST_TMPDIR/archive" root
+    export REAL_TAR="$(command -v tar)"
+    cat >"$DOTFILES_TEST_ROOT/bin/tar" <<'EOF'
+#!/bin/sh
+for arg in "$@"; do case "$arg" in --strip-components*) exit 99;; esac; done
+exec "$REAL_TAR" "$@"
+EOF
+    chmod +x "$DOTFILES_TEST_ROOT/bin/tar"
+    cat >"$DOTFILES_TEST_ROOT/bin/curl" <<'EOF'
+#!/bin/sh
+while [ "$#" -gt 0 ]; do
+    if [ "$1" = -o ]; then cp "$DOTFILES_TEST_ROOT/new-source.tar.gz" "$2"; exit; fi
+    shift
+done
+exit 1
+EOF
+    chmod +x "$DOTFILES_TEST_ROOT/bin/curl"
+    run sh "$standalone/bootstrap.sh" --update-source
+    [ "$status" = 0 ]
+    [[ "$output" == *updated-source* ]]
+    [ ! -e "$destination/custom-note" ]
+    [ "$(cat "$HOME/.local/share/.$repository.previous."*/source/custom-note)" = 'old source' ]
+    mkdir "$destination/.git"
+    run sh "$standalone/bootstrap.sh" --update-source
+    [ "$status" != 0 ]
+    [[ "$output" == *'Git checkout preserved'* ]]
+}
+
 @test "native target markers are mandatory even with a package manager" {
     rm -rf "$DOTFILES_TEST_ROOT/proc/ish"
     rm -f "$DOTFILES_TEST_ROOT/etc/openwrt_release"
@@ -107,6 +146,22 @@ EOF
     grep -q 'apk add' "$DOTFILES_TEST_ROOT/calls"
 }
 
+@test "package-network direct clears proxies only for native package operations" {
+    export http_proxy=http://parent.invalid:1234
+    export HTTPS_PROXY=http://parent.invalid:1234
+    cat >"$DOTFILES_TEST_ROOT/bin/apk" <<'EOF'
+#!/bin/sh
+test -z "${http_proxy:-}${HTTPS_PROXY:-}" || exit 44
+test "$NO_PROXY" = '*' || exit 45
+case "$1" in info) exit 1;; *) exit 0;; esac
+EOF
+    chmod +x "$DOTFILES_TEST_ROOT/bin/apk"
+    run sh "$REPO/bootstrap.sh" --manager sh --package-network direct
+    [ "$status" = 0 ]
+    [ "$http_proxy" = http://parent.invalid:1234 ]
+    [ "$HTTPS_PROXY" = http://parent.invalid:1234 ]
+}
+
 @test "managed-file edits and symlinks are preserved instead of overwritten" {
     run sh "$REPO/bootstrap.sh" --manager sh --config-only
     [ "$status" = 0 ]
@@ -128,6 +183,34 @@ EOF
     run sh "$REPO/bootstrap.sh" --manager chezmoi --config-only
     [ "$status" != 0 ]
     [ ! -e "$HOME/.profile" ]
+}
+
+@test "an old chezmoi without workingTree is not accepted by a version-only probe" {
+    cat >"$DOTFILES_TEST_ROOT/bin/chezmoi" <<'EOF'
+#!/bin/sh
+case "$1" in --version) echo 'chezmoi version v2.0.16';; execute-template) exit 0;; *) exit 1;; esac
+EOF
+    chmod +x "$DOTFILES_TEST_ROOT/bin/chezmoi"
+    run sh "$REPO/bootstrap.sh" --manager chezmoi --config-only
+    [ "$status" != 0 ]
+    [ ! -e "$HOME/.profile" ]
+}
+
+@test "noninteractive shells do not initialize prompts and Bash can use Starship" {
+    run sh "$REPO/bootstrap.sh" --manager sh --config-only
+    [ "$status" = 0 ]
+    cat >"$DOTFILES_TEST_ROOT/bin/starship" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >>"$DOTFILES_TEST_ROOT/starship-calls"
+printf 'PS1="starship-test> "\n'
+EOF
+    chmod +x "$DOTFILES_TEST_ROOT/bin/starship"
+    run bash --noprofile --norc -c '. "$HOME/.profile"'
+    [ "$status" = 0 ]
+    [ ! -e "$DOTFILES_TEST_ROOT/starship-calls" ]
+    run env TERM=xterm-256color bash --noprofile --norc -ic '. "$HOME/.bashrc"; test "$PS1" = "starship-test> "'
+    [ "$status" = 0 ]
+    grep -q '^init bash$' "$DOTFILES_TEST_ROOT/starship-calls"
 }
 
 @test "initial auto can use sh and retains that selection on subsequent runs" {

@@ -64,12 +64,17 @@ Git 身分與憑證由你管理。自訂值放在 `~/.config/dotfiles-lite/local
 這個檔案不會自動建立或納入管理。
 
 安裝不升級已存在的套件或可用 binary。Git checkout 用 `git pull --ff-only`
-明確更新來源；snapshot 則先下載新版本比對並保留客製變更，再自行替換。
+明確更新來源；snapshot 則下載新版 bootstrap 並使用 --update-source，在替換前將舊來源保存在相鄰 backup。
 設定更新與 binary 升級分開處理。維護者更新 `config/assets.lock` 時要一起更新
 版本、URL、hash、member 和大小，再通過 CI；需要升級時才明確替換舊 binary。
 Herdr 升級必須在 Herdr pane 外依 upstream 的 session 保留流程進行。
 
-選裝使用 `--with dev`；OpenWrt 另接受 `herdr,specstory,codex`，可重複給旗標。
+選裝使用 `--with dev` 或 `--with starship`；OpenWrt 另接受 `herdr,specstory,codex`，可重複給旗標。
 未提供 `--with` 時沿用上次選擇；提供清單則替換記錄，不解除安裝任何工具。
 選裝失敗會保留基本設定並回傳非零；基本套件失敗則在套用設定前停止。
 套件安裝不是完整的原子交易，已安裝成功的套件會留下。
+
+ash prompt、選裝 Bash、chezmoi 套件相容性與 snapshot 更新方式見 [Shell 與 Starship](shell.md)。
+
+`--package-network direct`（或 `DOTFILES_PACKAGE_NETWORK=direct`）只在套件管理器呼叫內
+清除 app proxy 變數；binary／source 下載仍沿用外層環境。預設 inherit，不會偷偷改道。

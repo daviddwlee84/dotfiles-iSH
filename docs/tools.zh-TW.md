@@ -23,3 +23,5 @@ SSH、tmux 只 seed 新設定；tmux 用 Ctrl+b 然後 1..9，不配置 extended
 Agent 工作請 SSH 到 Unix 主機，在遠端 attach Herdr，再於專案中執行
 `specstory run codex` 或其他已安裝 agent。Session 與歷史留在該主機。
 參閱 [iOS 終端機](ios-terminals.md)。
+
+內建 ash prompt 與 `--with starship` 見 [Shell 與 Starship](shell.md)。

@@ -26,3 +26,5 @@ The SSH seed preserves existing configuration; the tmux seed uses Ctrl+b then
 For agents, SSH to your Unix host, attach Herdr there, and launch
 `specstory run codex` (or another installed agent) in the remote project directory.
 The session and history live on that host. See [iOS terminals](ios-terminals.md).
+
+[Shell and Starship](shell.md) covers the builtin ash prompt and `--with starship`.

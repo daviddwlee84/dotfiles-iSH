@@ -21,8 +21,8 @@ CI 另在可拋棄的 x86_64／ARM64 musl container 啟動鎖定的 Linux binary
 6. Agent 由你使用個人憑證手動驗收；憑證與私人 prompt 不進 log 或 public repo。
    不藉停用 agent 隔離把不支援的 runtime 宣稱為成功。
 
-**目前狀態：**拆分時未透過本 repo 的 bootstrap 部署到 iPhone 或 Raspberry Pi。
-主機／CI 結果與實機驗收分別記錄；後續實驗由 repo 的 TODO 索引。
+**目前狀態（2026-09-07）：**使用者已確認 iSH v3.14 snapshot 的 sh 基本安裝成功。
+新版 chezmoi 與 Starship 路徑仍待 iSH 實機驗收。
 
 兩個輕量 repo 的共用 shell core、tests、assets lock 是相同副本，變更共同行為時同步修改。
 套件來源與使用者設定維持平台原生；維護工具及 release assets 不自動升級。

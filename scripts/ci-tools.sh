@@ -15,7 +15,7 @@ case "${1:-}" in
         printf '%s\n' "$HOME/.local/bin" >>"$GITHUB_PATH" ;;
     smoke)
         trap 'rm -rf "$HOME"' EXIT HUP INT TERM
-        for tool in chezmoi herdr specstory codex; do install_asset "$tool"; done
+        for tool in chezmoi starship herdr specstory codex; do install_asset "$tool"; done
         if [ -f "$REPO/home/dot_config/herdr/create_config.toml" ]; then
             HERDR_CONFIG_PATH="$REPO/home/dot_config/herdr/create_config.toml" "$HOME/.local/bin/herdr" config check
         fi ;;

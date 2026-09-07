@@ -72,15 +72,22 @@ credentials are left to you. Put personal overrides in
 
 Installs do not upgrade existing packages or working tool binaries. Source
 updates are explicit: `git pull --ff-only` in a Git checkout; for a snapshot,
-compare it with a newly downloaded snapshot and preserve your edits before
-replacing it. Updating configs and upgrading binaries are separate decisions.
+use a newly downloaded bootstrap with --update-source to retain the old source
+in a sibling backup before replacing it. Updating configs and upgrading binaries are separate decisions.
 Refresh version/URL/hash/member/size together in `config/assets.lock`, validate
 in CI, then explicitly replace an old binary when ready. A Herdr update belongs
 outside any Herdr pane and must follow its own session-preserving update procedure.
 
-Optional choices are supplied with `--with dev` (OpenWrt also accepts
+Optional choices are supplied with `--with dev` or `--with starship` (OpenWrt also accepts
 `herdr,specstory,codex`). Repeated flags are accepted. Without `--with`, prior
 choices are retained; an explicit list replaces the recorded selection, without
 uninstalling anything. Optional failure returns nonzero after preserving a working
 baseline; baseline-package failure stops before configuration. Installation is
 not an atomic package transaction; packages already added remain installed.
+
+See [Shell and Starship](shell.md) for the ash prompt, optional Bash setup,
+chezmoi package compatibility and explicit snapshot updates.
+
+`--package-network direct` (or `DOTFILES_PACKAGE_NETWORK=direct`) clears app proxy
+variables only inside package-manager calls; binary/source downloads retain the
+caller environment. Default `inherit` never silently changes the chosen route.

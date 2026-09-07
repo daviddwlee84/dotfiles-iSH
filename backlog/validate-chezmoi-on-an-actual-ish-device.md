@@ -23,3 +23,11 @@ build, iOS version, Alpine branch, binary version, shell startup and repeated
 chezmoi diff/apply duration. Test suspend/restart and Files mount. Keep sh default
 until repeated device results justify a separate reviewed change. A host Alpine
 container is not this emulator. No remote credentials are recorded here.
+
+## 2026-09-07 follow-up
+
+User confirmed sh baseline completion and branch diagnostics. Alpine v3.14 has
+chezmoi 2.0.16 and Starship 0.54.0; the former predates this source's workingTree
+capability and is rejected by the new capability check. Explicit chezmoi uses
+the locked i386 binary. Starship selection uses native apk + Bash, while ash
+now has a builtin-only prompt. Actual iSH optional-tool execution remains pending.

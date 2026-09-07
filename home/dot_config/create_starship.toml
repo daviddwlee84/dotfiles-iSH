@@ -1,0 +1,26 @@
+# Small cross-platform preset; no Nerd Font or language/runtime scans required.
+format = "$username$hostname $directory$character"
+add_newline = false
+scan_timeout = 20
+command_timeout = 300
+
+[username]
+show_always = true
+style_user = "bold cyan"
+style_root = "bold red"
+format = "[$user]($style)"
+
+[hostname]
+ssh_only = false
+style = "bold cyan"
+format = "[@$hostname]($style)"
+
+[directory]
+style = "bold blue"
+truncation_length = 3
+read_only = ""
+format = "[$path]($style) "
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
