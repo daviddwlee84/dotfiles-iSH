@@ -1,0 +1,14 @@
+#!/sbin/openrc-run
+# managed-by: dotfiles-lite; create-once service seed
+# OpenRC consumes these variables when it sources the service definition.
+# shellcheck disable=SC2034
+description="iSH dotfiles SSH server"
+command="/usr/sbin/sshd"
+command_args="-f /etc/ssh/dotfiles-lite/sshd_config -E /var/log/dotfiles-sshd.log"
+pidfile="/run/dotfiles-sshd.pid"
+required_files="/etc/ssh/dotfiles-lite/sshd_config"
+
+start_pre() {
+    [ ! -L /run/dotfiles-sshd.pid ] && [ ! -L /var/log/dotfiles-sshd.log ] || return 1
+    /usr/sbin/sshd -t -f /etc/ssh/dotfiles-lite/sshd_config
+}

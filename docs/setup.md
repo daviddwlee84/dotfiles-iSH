@@ -117,3 +117,19 @@ working versions are kept. Herdr upgrades belong outside Herdr panes and follow
 upstream's session-preserving procedure.
 
 If a probe stalls or you want to upgrade Alpine, see [system upgrades](system-upgrade.md).
+
+## SSH server on iSH
+
+SSH preparation is on by default, before the chezmoi runtime check. Use
+`--sshd off` to opt out or `--prepare-sshd` for SSH-only setup without chezmoi.
+Direct `chezmoi init` asks for the choice; unattended init uses `--promptDefaults`.
+OpenRC autostart, manual login setup, ownership and recovery are documented in
+[SSH server](ssh-server.md). Local agents are tracked in [experiments](experiments.md).
+
+## Finder shared files
+
+Finder's iSH Documents directory is mounted at `/mnt/finder` by default, with an
+independent OpenRC service restoring it at app startup. `chezmoi init` asks for
+the choice; `--finder off` opts out. Use `--prepare-finder` for just this setup,
+without chezmoi or SSH changes. Existing contents and foreign mounts are
+preserved. See [Finder files](finder-files.md) for transfer, ownership and checks.

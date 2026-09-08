@@ -32,6 +32,7 @@ repos:
         exclude: ^\.specstory/
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
-        exclude: ^\.specstory/
+        # Unified diffs require a space prefix on empty context lines.
+        exclude: (^\.specstory/|^experiments/patches/.*\.patch$)
       - id: check-yaml
       - id: check-json

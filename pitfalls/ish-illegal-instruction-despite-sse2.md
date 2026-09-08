@@ -1,119 +1,69 @@
-# `Illegal instruction` in iSH for a binary that only uses SSE2
+# `Illegal instruction` despite a matching iSH architecture
 
-> Historical investigation migrated from `daviddwlee84/dotfiles@4073f220`.
-> The referenced Unix paths and build-specific claims describe that investigation.
-> Current support policy and the automated minimal configuration are in
-> [iOS terminals](../docs/ios-terminals.md). These reports are not fresh on-device reproductions.
+**Symptoms:** `Illegal instruction`, `illegal hardware instruction`, `Bad system call`,
+`nodejs and npm versions are not supported`; package installation succeeds but
+startup or a later workload fails.
+**First seen:** historical upstream reports, migrated from
+`daviddwlee84/dotfiles@4073f2207afb0c865b58321f46c2edfb16c7819c`.
+**Affects:** the specific iSH/tool/version combinations in the linked reports.
+**Status:** historical claims corrected 2026-09-08; device acceptance pending.
 
-**Symptoms** (grep this section): `Illegal instruction` / `illegal instruction at 0x571b64ee: 66 0f 6a d0 66 0f 7e d0` / `illegal instruction at 0x56da8a42: 66 0f 72 f0 05 66 0f fe` / `Bad system call` when running `node`, `npm`, `rg`, `cargo`, `rustc` inside iSH on iOS; `nodejs and npm versions are not supported` when installing an agent CLI; `apk add` succeeded but the binary dies instantly
-**First seen**: 2026-07 (this repo's investigation; upstream reports run 2018→2026)
-**Affects**: iSH (iOS) any build incl. 812; Alpine i686 packages; anything built by Rust's `i686-*` targets; Node/V8
-**Status**: WONTFIX-ish upstream — an 8-year open issue chain (ish-app/ish#90 → #917 → #1564 → #1724 → #2335 → #2604). Not reproduced on-device by us; derived from iSH sources + upstream reports.
+## Correction to the migrated investigation
 
-## Symptom
+The previous text generalized individual failures to every Node, Rust and Go
+binary, called the situation "WONTFIX-ish", declared no workaround, and recommended
+stopping at Alpine 3.18. These unsupported conclusions have been removed, along
+with unverified all-build scope and snapshot-specific decoder counts.
 
-A package installs cleanly and then refuses to run:
+The assertion that native iOS restrictions make child processes impossible in
+iSH was also wrong: iSH implements guest
+[`fork`/`clone`](https://github.com/ish-app/ish/blob/master/kernel/fork.c) and
+[`execve`](https://github.com/ish-app/ish/blob/master/kernel/exec.c). Compatibility
+must be established for the emulator and workload, not inferred from native iOS.
 
-```
-localhost:~# apk add nodejs
-(1/4) Installing nodejs (...)
-OK: 142 MiB in 61 packages
-localhost:~# node --version
-Illegal instruction
-```
+## Symptoms with source context
 
-`dmesg` inside iSH shows the offending opcode bytes:
+[Issue #1507](https://github.com/ish-app/ish/issues/1507) reports iSH 1.2.2 (178),
+Cargo 1.44.0: `cargo --version` succeeds but `cargo build` reports:
 
-```
-illegal instruction at 0x571b64ee: 66 0f 6a d0 66 0f 7e d0
-illegal instruction at 0x56da8a42: 66 0f 72 f0 05 66 0f fe
-```
-
-Older reports show `Bad system call` instead. Installing an agent CLI reports:
-
-```
-nodejs and npm versions are not supported
+```text
+illegal hardware instruction
 ```
 
-Also hits `ripgrep` (`rg`), `cargo`, `rustc` — i.e. things you would not
-suspect of using SIMD at all.
+[Issue #2335](https://github.com/ish-app/ish/issues/2335) concerns Node startup.
+A [2024 workaround](https://github.com/ish-app/ish/issues/2335#issuecomment-2264331674)
+uses Node 20.8.1 with matching ICU; a
+[2026 correction](https://github.com/ish-app/ish/issues/2335#issuecomment-4034378900)
+adds ada-libs. Neither establishes compatibility of modern agents.
 
-## Root cause
+[Issue #2447](https://github.com/ish-app/ish/issues/2447) reports iSH 1.3.2 with
+both i586 and i686 musl Rust/Tokio binaries:
 
-**Not** "iSH lacks SSE2". That is the intuitive diagnosis and it is wrong.
+```text
+attempt to calculate the remainder with a divisor of zero
+Segmentation fault
+```
 
-iSH's CPUID leaf 1 *does* advertise `fpu|cmov|mmx|sse2` (ECX = 0, max leaf 1 —
-so no SSE3/SSSE3/SSE4/POPCNT/AES-NI/AVX, and no leaf 7, so no BMI/AVX2).
+## Cause and investigation
 
-The traps come from somewhere else: `emu/decode.h` has 31 `UNDEFINED` points
-and `asbestos/gen.c` has NULL gadget slots. **A perfectly legal instruction,
-inside the advertised baseline, still raises SIGILL if its host gadget is
-unimplemented.** Proof by extreme example: `LOOP` (0xE0/0xE1/0xE2, an 8086-era
-instruction) was still unimplemented at build 812. The SSE2 instruction
-`PMULLW` has its own SIGILL report (ish-app/ish#1417).
+Matching 32-bit x86 and musl is necessary but insufficient. An advertised CPU
+feature does not prove all its instructions work. The
+[`cvtdq2pd` patch](https://github.com/ish-app/ish/commit/d0309a5ff4b36efad0a0f49fad1082516c08cf6d)
+and [Node fork report](https://github.com/ish-app/ish/issues/2604#issuecomment-3448630596)
+provide one instruction-related example. Other failures can involve threading,
+syscalls, libraries or dependency versions; similarly named errors can differ.
 
-Decoding the bytes above confirms the family but not the diagnosis:
+## Workaround and prevention
 
-| Bytes | Instruction | Set |
-|---|---|---|
-| `66 0f 6a d0` | `PUNPCKHDQ xmm2, xmm0` | SSE2 |
-| `66 0f 7e d0` | `MOVD eax, xmm2` | SSE2 |
-| `66 0f 72 f0 05` | `PSLLD xmm0, 5` | SSE2 |
-| `66 0f fe` | `PADDD` | SSE2 |
+- Record exact iSH/iOS/Alpine and tool versions, binary hashes and the failing
+  command. Retain relevant error/opcode output without private data.
+- Separate installation, startup, emulator CLI and device workflow results.
+  A version probe does not certify compilation, PTYs or an agent session.
+- Test alternate releases in separate filesystems. Do not mix feeds or force past
+  dependency/checksum failures. Old Alpine 3.18 is not a current upgrade policy.
+- Follow the [agent experiment sequence](../docs/experiments.md). SSH supports
+  direct iSH testing as well as workloads running on another host.
 
-They are all *inside* the advertised baseline. They trap anyway.
-
-Why the blast radius is wide:
-
-- **V8** emits `cvtdq2pd` among others, so every Node version dies. A patch
-  exists only in an unmerged personal fork (`d0309a5`, ahead 1 / behind 51, no
-  PR opened).
-- **Rust's `i686-*` targets assume SSE2** by default (rust-lang/rust#114479),
-  so Rust CLIs are affected even when the program has no SIMD of its own —
-  see ish-app/ish#805, titled `Illegal instruction in rust programs: paddd`.
-- **Go** binaries hit a separate but equally fatal problem: a race condition
-  that hangs forever (ish-app/ish#1230, from an iSH contributor: *"The go
-  language currently triggers some sort of race condition in iSH which causes
-  it to lock up forever. It's easy to reproduce."*). `chezmoi` is Go.
-
-## Workaround
-
-There is none for the affected binaries. Do not chase it:
-
-- **Do not upgrade Alpine to `edge` hoping for a fixed build.** Alpine formally
-  raised the x86 baseline to SSE2 and builds `-march=pentium-m`
-  ([alpine-users list](https://lists.alpinelinux.org/~alpine/users/%3CCTQBXQ3S98WX.167V56IKQX4EI%40sumire%3E):
-  *"if you are using edge, and you have a CPU without sse2, then the hardware
-  will most likely not work with alpine linux anymore"*). That makes things
-  strictly worse — more of userland moves into the unimplemented range.
-- **Do not downgrade Node.** ish-app/ish#1564 shows
-  `apk add nodejs-current==15.10.0-r0 --force` still trapping.
-- Stop at **Alpine 3.18**; 3.19 crashes `sudo` and segfaults `uptime` via
-  `procps`, 3.20's `coreutils` breaks `/dev`.
-
-Run the workload elsewhere and use iSH as an SSH client — see
-[`docs/ios-terminals.md`](../docs/ios-terminals.md).
-
-## Prevention
-
-**The generalisable lesson: on iSH you cannot predict whether a binary runs by
-reasoning about its instruction set.** "This only needs SSE2, and iSH has SSE2"
-is not a valid argument. The only reliable test is running it.
-
-Corollary for triage: when something dies in iSH, check `dmesg` for the opcode
-bytes before assuming a missing CPU feature — an unimplemented gadget for a
-supported instruction looks identical from userspace.
-
-Also note the second, larger wall that makes all of this moot for agent CLIs:
-iOS forbids `fork`/`exec` of arbitrary binaries, so `child_process` is
-unavailable regardless of CPU. See the ios-terminals playbook.
-
-## Related
-
-- [`docs/ios-terminals.md`](../docs/ios-terminals.md) — full
-  platform analysis and the recommended stack
-- [`pitfalls/ish-tmux-ctrl-digit-dead-wrong-binding.md`](ish-tmux-ctrl-digit-dead-wrong-binding.md)
-  — the other iSH trap, also a false-positive capability report
-- [`docs/glibc-and-musl.md`](https://github.com/daviddwlee84/dotfiles/blob/4073f2207afb0c865b58321f46c2edfb16c7819c/docs/glibc-and-musl.md)
-- Upstream: ish-app/ish#90, #805, #917, #1230, #1417, #1564, #1724, #2335,
-  #2604; rust-lang/rust#114479; astral-sh/uv#2732 (closed not-planned)
+Related: [iOS terminals](../docs/ios-terminals.md),
+[SSH setup](../docs/ssh-server.md),
+[chezmoi timeout](chezmoi-probe-waits-past-timeout.md).

@@ -1,0 +1,19 @@
+#!/sbin/openrc-run
+# managed-by: dotfiles-lite-finder; create-once service seed
+# shellcheck disable=SC2034
+description="iSH Finder shared files"
+
+start() {
+    ebegin "Mounting iSH Finder files"
+    /usr/local/libexec/dotfiles-finder mount
+    eend $?
+}
+
+status() {
+    /usr/local/libexec/dotfiles-finder status
+}
+
+stop() {
+    # Do not interrupt readers/writers. App shutdown removes the kernel mount.
+    return 0
+}

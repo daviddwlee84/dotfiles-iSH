@@ -1,3 +1,3 @@
 #!/bin/sh
 set -eu
-sh '{{ .chezmoi.workingTree | replace "'" "'\\''" }}'/scripts/manage.sh --prepare-chezmoi
+sh '{{ .chezmoi.workingTree | replace "'" "'\\''" }}'/scripts/manage.sh --prepare-chezmoi{{ if eq .chezmoi.command "init" }} --sshd {{ if .ishSshd }}on{{ else }}off{{ end }} --finder {{ if .ishFinder }}on{{ else }}off{{ end }}{{ else }}{{ if hasKey . "ishSshd" }} --sshd-initial {{ if .ishSshd }}on{{ else }}off{{ end }}{{ end }}{{ if hasKey . "ishFinder" }} --finder-initial {{ if .ishFinder }}on{{ else }}off{{ end }}{{ end }}{{ end }}

@@ -12,7 +12,7 @@ OFFLINE_ACTION=0
 for argument in "$@"; do
     case "$argument" in
         --config-only|--doctor) OFFLINE_ACTION=1 ;;
-        --help|-h) printf '%s\n' 'bootstrap.sh [--update-source] [--manager auto|sh|chezmoi] [--with dev,starship,herdr,specstory,codex] [--source-network inherit|direct|proxy] [--package-network inherit|direct] [--config-only] [--dry-run] [--doctor]'; exit 0 ;;
+        --help|-h) printf '%s\n' 'bootstrap.sh [--update-source] [--manager auto|sh|chezmoi] [--with dev,starship,herdr,specstory,codex] [--sshd on|off] [--prepare-sshd] [--finder on|off] [--prepare-finder] [--source-network inherit|direct|proxy] [--package-network inherit|direct] [--config-only] [--dry-run] [--doctor]'; exit 0 ;;
         --dry-run) printf 'Would fetch %s, then inspect native prerequisites without applying.\n' "$REPOSITORY"; exit 0 ;;
     esac
 done

@@ -33,7 +33,9 @@ Clipboard uses tmux's OSC 52 support; verify it on your actual iSH build.
 
 iOS can suspend iSH when it leaves the foreground. Keep persistent sessions on
 the remote host; local keepalives detect a lost connection but cannot prevent
-suspension. Mounts must be recreated after app restart. For fonts, test a Nerd
+suspension. Real mounts need recreation after app restart; the default
+[Finder service](finder-files.md) handles `/mnt/finder`. Files-provider mounts
+use iSH's separate bookmark mechanism. For fonts, test a Nerd
 Font Mono variant with your actual terminal rather than assuming glyph width.
 
 For mobile terminal alternatives, Blink is a candidate for SSH/mosh, while
@@ -64,3 +66,10 @@ Sources: [iSH](https://github.com/ish-app/ish), [historical Go report](https://g
 The follow-up iSH 1.3.2 report installed Bash/Starship but stalled during the
 chezmoi probe for over five minutes. See [system upgrades](system-upgrade.md) for
 the timeout correction, immediate shell recovery and separate-filesystem testing.
+
+## Direct local testing
+
+The default-on [SSH server setup](ssh-server.md) lets a Mac connect to iSH for
+controlled experiments. [Local-agent research](experiments.md) tracks hako,
+Pi/Gemini and Herdr individually; lack of a supported installer does not prove
+that no local agent can work. The historical SIGILL pitfall has been corrected.

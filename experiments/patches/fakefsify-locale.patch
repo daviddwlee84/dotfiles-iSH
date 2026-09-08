@@ -1,0 +1,20 @@
+diff --git a/tools/fakefsify.c b/tools/fakefsify.c
+index 039ebf1..0c65c53 100644
+--- a/tools/fakefsify.c
++++ b/tools/fakefsify.c
+@@ -1,6 +1,7 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include <libgen.h>
++#include <locale.h>
+ 
+ #define ISH_INTERNAL
+ #include "fs/fake.h"
+@@ -12,6 +13,7 @@ enum cmd {
+ };
+ 
+ int main(int argc, const char *argv[]) {
++    setlocale(LC_ALL, "");
+     enum cmd cmd = cmd_import;
+     if (strcmp(basename((char *) argv[0]), "unfakefsify") == 0) {
+         cmd = cmd_export;

@@ -26,7 +26,9 @@ Node／Rust／Go 工作負載有歷史 SIGILL、deadlock、syscall 回報；它�
 `TERM=xterm-256color` 不足以證明鍵盤能力。Clipboard 保留 tmux OSC 52，仍需測你的 iSH build。
 
 iOS 可能在 app 離開前景後暫停 iSH；持久 session 留在遠端主機。
-Keepalive 只能發現斷線，無法防止 suspend；app 重啟後需重新掛載 Files。
+Keepalive 只能發現斷線，無法防止 suspend；real 掛載在 app 重啟後需要重建，
+預設的 [Finder 服務](finder-files.md) 負責恢復 `/mnt/finder`。
+Files provider 掛載則使用 iSH 自己的 bookmark 機制。
 字型可測 Nerd Font Mono，但仍以實際終端的字寬結果為準。
 
 其他 mobile terminal 可評估 Blink 的 SSH／mosh，Git／Files 專用流程可評估 Working Copy。
@@ -50,3 +52,9 @@ Keepalive 只能發現斷線，無法防止 suspend；app 重啟後需重新掛�
 
 後續 iSH 1.3.2 回報：Bash／Starship 已安裝，chezmoi 檢查卡住超過五分鐘。
 逾時修正、先恢復 shell 設定及獨立 filesystem 測試見[系統升級](system-upgrade.md)。
+
+## 本機直連測試
+
+預設開啟的 [SSH 伺服器設定](ssh-server.md) 可讓 Mac 連入 iSH 進行實驗。
+[本機 agent 研究](experiments.md) 分別追蹤 hako、Pi／Gemini 與 Herdr；
+沒有已支援的 installer，不代表所有本機 agent 都不能執行。歷史 SIGILL pitfall 已更正。

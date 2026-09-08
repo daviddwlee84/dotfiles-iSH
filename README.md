@@ -20,7 +20,12 @@ the current bootstrap; the full previous source is retained in a sibling backup.
 
 An explicit offline sh checkout also works: `sh bootstrap.sh --config-only --manager sh`.
 Use `sh bootstrap.sh --help` for optional tools and management modes.
-No firmware, network policy or credentials are deployed.
+No firmware or network policy is deployed. iSH SSH setup is enabled by default;
+host keys are generated locally and passwords remain manual. See
+[SSH server](docs/ssh-server.md) / [SSH 伺服器](docs/ssh-server.zh-TW.md).
+Finder file sharing is also enabled by default at `/mnt/finder`, with mounting
+at iSH startup. Use `--finder off` to opt out; see
+[Finder files](docs/finder-files.md) / [Finder 檔案共享](docs/finder-files.zh-TW.md).
 
 <!-- project-knowledge-harness:readme-roadmap -->
 <!-- Snippet for project's README.md, placed near other meta sections like

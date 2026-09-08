@@ -14,6 +14,16 @@ Unix > Windows >> iSH / OpenWrt. Keep the target baseline small.
 - Preserve user state. No system upgrades, feed replacement, login-shell changes,
   credential writes, service enable/restart, UCI/network/firewall changes or
   automatic git commits/pushes on target devices.
+- Explicit iSH SSH exception: the default-on `sshd` option may install OpenSSH /
+  OpenRC, generate missing host keys, seed its own config/service, register it in
+  the default runlevel and start it when OpenRC is ready. Never restart existing
+  servers or sessions. Passwords remain a manual `passwd` operation; auth files
+  stay local. Turning the option off removes only our autostart registration.
+- Explicit iSH Finder exception: default-on Finder setup may install OpenRC,
+  seed its own helper/service, mount iSH Documents at /mnt/finder and register
+  automatic mounting at app startup. Read /proc/ish/documents each time; never
+  hardcode an iOS container path, cover existing files/foreign mounts, or modify
+  other Files-provider mounts. Disabling removes only our autostart registration.
 - ash has a builtin-only prompt; Starship uses upstream Bash initialization. No chsh or automatic exec bash.
 - Default manager is chezmoi; auto is an alias. First online setup migrates snapshots
   to a real tracking Git checkout and retains the full previous source in a backup.

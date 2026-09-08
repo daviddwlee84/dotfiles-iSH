@@ -103,3 +103,17 @@ hash、member 和大小並通過 CI；既有可用版本會保留。
 Herdr 升級應在 pane 外依 upstream 保留 session 的程序執行。
 
 檢查卡住或想升級 Alpine，請看[系統升級](system-upgrade.md)。
+
+## iSH SSH 伺服器
+
+SSH 準備預設開啟，先於 chezmoi runtime 檢查。使用 `--sshd off` 退出，或用
+`--prepare-sshd` 只準備 SSH，不需要 chezmoi。直接 `chezmoi init` 會詢問選項，
+非互動 init 使用 `--promptDefaults`。OpenRC 自動啟動、手動登入設定、設定歸屬及復原
+見 [SSH 伺服器](ssh-server.md)；本機 agent 另見[實驗](experiments.md)。
+
+## Finder 共享檔案
+
+Finder 的 iSH Documents 目錄預設掛載在 `/mnt/finder`，由獨立 OpenRC 服務在
+app 啟動時恢復掛載。`chezmoi init` 會詢問選項，可用 `--finder off` 關閉。
+`--prepare-finder` 只準備此功能，不需要 chezmoi，也不修改 SSH。
+既有內容及其他掛載會保留。傳檔、設定歸屬與檢查見 [Finder 檔案共享](finder-files.md)。

@@ -1,0 +1,48 @@
+From d0309a5ff4b36efad0a0f49fad1082516c08cf6d Mon Sep 17 00:00:00 2001
+From: Yassin Rezai <yassin@arch>
+Date: Sun, 26 Oct 2025 14:15:58 +0100
+Subject: [PATCH] implement SSE2 cvtdq2pd to fix illegal instruction
+
+---
+ emu/decode.h | 2 ++
+ emu/vec.c    | 1 +
+ emu/vec.h    | 1 +
+ 3 files changed, 4 insertions(+)
+
+diff --git a/emu/decode.h b/emu/decode.h
+index 00a075fc86..e545a50c03 100644
+--- a/emu/decode.h
++++ b/emu/decode.h
+@@ -1290,6 +1290,8 @@ __no_instrument DECODER_RET glue(DECODER_NAME, OP_SIZE)(DECODER_ARGS) {
+                                    READMODRM; V_OP(cvtss2sd, xmm_modrm_val, xmm_modrm_reg,32); break;
+                         case 0x5b: TRACEI("cvttps2dq xmm:modrm, xmm");
+                                    READMODRM; V_OP(cvttps2dq, xmm_modrm_val, xmm_modrm_reg,32); break;
++                        case 0xe6: TRACEI("cvtdq2pd xmm:modrm, xmm");
++                                   READMODRM; V_OP(cvtdq2pd, xmm_modrm_val, xmm_modrm_reg,64); break;
+ 
+                         case 0x58: TRACEI("addss xmm:modrm, xmm");
+                                    READMODRM; V_OP(single_fadd, xmm_modrm_val, xmm_modrm_reg,32); break;
+diff --git a/emu/vec.c b/emu/vec.c
+index 1af4ebbacd..55186ab8d6 100644
+--- a/emu/vec.c
++++ b/emu/vec.c
+@@ -423,6 +423,7 @@ VEC_CVT(ss2sd32, float, double)
+ 
+ PACKED_VEC_CVT(tpd2dq64, f64, u32, double, int32_t, 2)
+ PACKED_VEC_CVT(tps2dq32, f32, u32, float, int32_t, 4)
++PACKED_VEC_CVT(dq2pd64, u32, f64, int32_t, double, 2)
+ 
+ void vec_unpackl_bw128(NO_CPU, const union xmm_reg *src, union xmm_reg *dst) {
+     for (int i = 7; i >= 0; i--) {
+diff --git a/emu/vec.h b/emu/vec.h
+index 78dc4e078e..fb7922598c 100644
+--- a/emu/vec.h
++++ b/emu/vec.h
+@@ -145,6 +145,7 @@ void vec_cvtsd2ss64(NO_CPU, const double *src, float *dst);
+ void vec_cvtsi2ss32(NO_CPU, const int32_t *src, float *dst);
+ void vec_cvttss2si32(NO_CPU, const float *src, int32_t *dst);
+ void vec_cvtss2sd32(NO_CPU, const float *src, double *dst);
++void vec_cvtdq2pd64(NO_CPU, const union xmm_reg *src, union xmm_reg *dst);
+ 
+ void vec_cvttpd2dq64(NO_CPU, const union xmm_reg *src, union xmm_reg *dst);
+ void vec_cvttps2dq32(NO_CPU, const union xmm_reg *src, union xmm_reg *dst);

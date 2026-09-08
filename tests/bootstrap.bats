@@ -44,7 +44,8 @@ case "$1" in info) exit 1 ;; add) exit "${FAIL_PACKAGES:-0}" ;; update) exit 0 ;
 EOF
     cat >"$DOTFILES_TEST_ROOT/bin/timeout" <<'EOF'
 #!/bin/sh
-[ "$1" = -s ] && [ "$2" = KILL ] && [ "$3" = 15 ] || exit 97
+[ "$1" = -s ] && [ "$2" = KILL ] || exit 97
+case "$3" in 15|120) ;; *) exit 97 ;; esac
 shift 3
 exec "$@"
 EOF
@@ -58,6 +59,76 @@ EOF
     done
     chmod +x "$DOTFILES_TEST_ROOT/bin/"*
     export PATH="$DOTFILES_TEST_ROOT/bin:$PATH"
+    if [ "$TEST_PLATFORM" = ish ]; then
+        mkdir -p "$DOTFILES_TEST_ROOT/usr/sbin" "$DOTFILES_TEST_ROOT/usr/bin" "$DOTFILES_TEST_ROOT/sbin"
+        printf '%s\n' /var/mobile/Containers/Data/Application/fixture/Documents >"$DOTFILES_TEST_ROOT/proc/ish/documents"
+        : >"$DOTFILES_TEST_ROOT/proc/mounts"
+        cat >"$DOTFILES_TEST_ROOT/bin/mount" <<'EOF'
+#!/bin/sh
+printf 'mount %s\n' "$*" >>"$DOTFILES_TEST_ROOT/finder-calls"
+test "$#" = 4 && test "$1" = -t && test "$2" = real || exit 90
+test "$4" = "$DOTFILES_TEST_ROOT/mnt/finder" || exit 90
+test "${FAIL_FINDER_MOUNT:-0}" = 0 || exit 1
+escaped_source=$(printf '%s' "$3" | sed 's/\\/\\134/g; s/ /\\040/g')
+printf '%s %s real rw 0 0\n' "$escaped_source" "$4" >>"$DOTFILES_TEST_ROOT/proc/mounts"
+EOF
+        cat >"$DOTFILES_TEST_ROOT/usr/bin/ssh-keygen" <<'EOF'
+#!/bin/sh
+printf 'ssh-keygen %s\n' "$*" >>"$DOTFILES_TEST_ROOT/ssh-calls"
+test "${FAIL_HOST_KEYS:-0}" = 0 || exit 1
+key=''
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -q) shift ;;
+        -t) test "$2" = ed25519 || exit 91; shift 2 ;;
+        -N|-C) test -z "$2" || exit 91; shift 2 ;;
+        -f) key=$2; shift 2 ;;
+        *) exit 91 ;;
+    esac
+done
+test -n "$key" || exit 91
+printf 'generated-fixture-host-key\n' >"$key"
+printf 'generated-fixture-public-key\n' >"$key.pub"
+EOF
+        cat >"$DOTFILES_TEST_ROOT/usr/sbin/sshd" <<'EOF'
+#!/bin/sh
+printf 'sshd %s\n' "$*" >>"$DOTFILES_TEST_ROOT/ssh-calls"
+test "$1" = -t && test "$2" = -f || exit 92
+exit "${FAIL_SSH_CONFIG:-0}"
+EOF
+        # Match Alpine openrc's package layout: rc-status is in /bin.
+        cat >"$DOTFILES_TEST_ROOT/bin/rc-status" <<'EOF'
+#!/bin/sh
+printf '%s\n' "${TEST_RUNLEVEL:-default}"
+EOF
+        cat >"$DOTFILES_TEST_ROOT/sbin/rc-update" <<'EOF'
+#!/bin/sh
+case "$2" in
+    dotfiles-sshd) call_log="$DOTFILES_TEST_ROOT/ssh-calls" ;;
+    dotfiles-finder) call_log="$DOTFILES_TEST_ROOT/finder-service-calls" ;;
+    *) exit 93 ;;
+esac
+printf 'rc-update %s\n' "$*" >>"$call_log"
+test "$3" = default || exit 93
+mkdir -p "$DOTFILES_TEST_ROOT/etc/runlevels/default"
+case "$1" in
+ add) ln -sf "../../init.d/$2" "$DOTFILES_TEST_ROOT/etc/runlevels/default/$2" ;;
+ del) rm -f "$DOTFILES_TEST_ROOT/etc/runlevels/default/$2" ;;
+ *) exit 94 ;;
+esac
+EOF
+        cat >"$DOTFILES_TEST_ROOT/sbin/rc-service" <<'EOF'
+#!/bin/sh
+printf 'rc-service %s\n' "$*" >>"$DOTFILES_TEST_ROOT/ssh-calls"
+test "$1" = dotfiles-sshd || exit 95
+case "$2" in
+ status) test -f "$DOTFILES_TEST_ROOT/ssh-running" ;;
+ start) test "${FAIL_SSH_START:-0}" = 0 || exit 1; touch "$DOTFILES_TEST_ROOT/ssh-running" ;;
+ *) exit 96 ;;
+esac
+EOF
+        chmod +x "$DOTFILES_TEST_ROOT/usr/bin/ssh-keygen" "$DOTFILES_TEST_ROOT/usr/sbin/sshd" "$DOTFILES_TEST_ROOT/bin/rc-status" "$DOTFILES_TEST_ROOT/bin/mount" "$DOTFILES_TEST_ROOT/sbin/"*
+    fi
 }
 
 @test "sh setup is idempotent and keeps SSH, tmux, profile and credentials" {
@@ -281,7 +352,7 @@ EOF
     source_copy="$BATS_TEST_TMPDIR/source with ' quote"
     mkdir -p "$source_copy"
     cp -R "$REPO/scripts" "$REPO/config" "$REPO/home" "$REPO/.chezmoiroot" "$source_copy/"
-    run "$REAL_CHEZMOI" --config "$CHEZMOI_CONFIG" init --source "$source_copy" --destination "$HOME" --apply
+    run "$REAL_CHEZMOI" --config "$CHEZMOI_CONFIG" init --promptDefaults --source "$source_copy" --destination "$HOME" --apply
     [ "$status" = 0 ]
     grep -q 'apk add' "$DOTFILES_TEST_ROOT/calls"
     [ -f "$HOME/.profile" ]
@@ -339,6 +410,302 @@ EOF
     grep -q 'opkg install' "$DOTFILES_TEST_ROOT/calls"
     ! grep -q upgrade "$DOTFILES_TEST_ROOT/calls"
     [ ! -e "$DOTFILES_TEST_ROOT/etc/opkg.conf" ]
+}
+
+@test "SSH defaults on and is prepared before a failing chezmoi probe" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    printf '#!/bin/sh\nexit 1\n' >"$DOTFILES_TEST_ROOT/bin/chezmoi"
+    chmod +x "$DOTFILES_TEST_ROOT/bin/chezmoi"
+    run sh "$REPO/bootstrap.sh"
+    [ "$status" != 0 ]
+    [ -f "$DOTFILES_TEST_ROOT/ssh-running" ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/sshd")" = on ]
+    [ -L "$DOTFILES_TEST_ROOT/etc/runlevels/default/dotfiles-sshd" ]
+    [ ! -f "$HOME/.profile" ]
+}
+
+@test "SSH-only recovery is independent of saved optional tool selections" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    mkdir -p "$HOME/.local/state/dotfiles-lite"
+    echo obsolete-option >"$HOME/.local/state/dotfiles-lite/options"
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" = 0 ]
+    [ -f "$DOTFILES_TEST_ROOT/ssh-running" ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/options")" = obsolete-option ]
+}
+
+@test "SSH setup retains native config, keys and sessions across repeats and disable" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    mkdir -p "$DOTFILES_TEST_ROOT/etc/ssh" "$HOME/.ssh"
+    echo 'Port 2222' >"$DOTFILES_TEST_ROOT/etc/ssh/sshd_config"
+    echo 'existing-key-fixture' >"$DOTFILES_TEST_ROOT/etc/ssh/ssh_host_ed25519_key"
+    echo 'existing-authorized-key-fixture' >"$HOME/.ssh/authorized_keys"
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" = 0 ]
+    printf '\n# personal edit\n' >>"$DOTFILES_TEST_ROOT/etc/ssh/dotfiles-lite/sshd_config"
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" = 0 ]
+    [ "$(grep -c 'rc-service dotfiles-sshd start' "$DOTFILES_TEST_ROOT/ssh-calls")" = 1 ]
+    grep -q 'personal edit' "$DOTFILES_TEST_ROOT/etc/ssh/dotfiles-lite/sshd_config"
+    [ "$(cat "$DOTFILES_TEST_ROOT/etc/ssh/sshd_config")" = 'Port 2222' ]
+    [ "$(cat "$DOTFILES_TEST_ROOT/etc/ssh/ssh_host_ed25519_key")" = existing-key-fixture ]
+    [ "$(cat "$HOME/.ssh/authorized_keys")" = existing-authorized-key-fixture ]
+    run sh "$REPO/bootstrap.sh" --prepare-sshd --sshd off
+    [ "$status" = 0 ]
+    [ ! -L "$DOTFILES_TEST_ROOT/etc/runlevels/default/dotfiles-sshd" ]
+    [ -f "$DOTFILES_TEST_ROOT/ssh-running" ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/sshd")" = off ]
+    ! grep -Eq ' restart| stop|passwd|chpasswd' "$DOTFILES_TEST_ROOT/ssh-calls"
+}
+
+@test "SSH dry-run, config-only and explicit off do not activate services" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    run sh "$REPO/bootstrap.sh" --prepare-sshd --dry-run
+    [ "$status" = 0 ]
+    [ ! -e "$DOTFILES_TEST_ROOT/ssh-calls" ]
+    [ ! -e "$HOME/.local/state/dotfiles-lite/sshd" ]
+    run sh "$REPO/bootstrap.sh" --manager sh --config-only --sshd off
+    [ "$status" = 0 ]
+    [ ! -e "$DOTFILES_TEST_ROOT/ssh-calls" ]
+    run sh "$REPO/bootstrap.sh" --manager sh
+    [ "$status" = 0 ]
+    [ ! -e "$DOTFILES_TEST_ROOT/ssh-calls" ]
+    ! grep -q 'apk add openssh openrc' "$DOTFILES_TEST_ROOT/calls"
+}
+
+@test "SSH first OpenRC boot registers default and leaves runlevel untouched" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    export TEST_RUNLEVEL=sysinit
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" = 0 ]
+    [[ "$output" == *'reopen iSH'* ]]
+    [ -L "$DOTFILES_TEST_ROOT/etc/runlevels/default/dotfiles-sshd" ]
+    [ ! -e "$DOTFILES_TEST_ROOT/ssh-running" ]
+    ! grep -q 'rc-service .* start' "$DOTFILES_TEST_ROOT/ssh-calls"
+}
+
+@test "SSH config and host-key failures do not register or start a server" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    export FAIL_HOST_KEYS=1
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" != 0 ]
+    [ ! -L "$DOTFILES_TEST_ROOT/etc/runlevels/default/dotfiles-sshd" ]
+    export FAIL_HOST_KEYS=0 FAIL_SSH_CONFIG=1
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" != 0 ]
+    [ ! -L "$DOTFILES_TEST_ROOT/etc/runlevels/default/dotfiles-sshd" ]
+    [ ! -e "$DOTFILES_TEST_ROOT/ssh-running" ]
+}
+
+@test "SSH generates only its missing Ed25519 key and preserves orphaned public keys" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" = 0 ]
+    [ -s "$DOTFILES_TEST_ROOT/etc/ssh/ssh_host_ed25519_key" ]
+    [ -s "$DOTFILES_TEST_ROOT/etc/ssh/ssh_host_ed25519_key.pub" ]
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" = 0 ]
+    [ "$(grep -c '^ssh-keygen ' "$DOTFILES_TEST_ROOT/ssh-calls")" = 1 ]
+    ! grep -q 'ssh-keygen -A' "$DOTFILES_TEST_ROOT/ssh-calls"
+    rm "$DOTFILES_TEST_ROOT/etc/ssh/ssh_host_ed25519_key"
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" != 0 ]
+    [[ "$output" == *'public host key without its private key preserved'* ]]
+    [ ! -f "$DOTFILES_TEST_ROOT/etc/ssh/ssh_host_ed25519_key" ]
+}
+
+@test "SSH startup failure preserves baseline and reports failure" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    export FAIL_SSH_START=1
+    run sh "$REPO/bootstrap.sh" --manager sh
+    [ "$status" != 0 ]
+    [ -f "$HOME/.profile" ]
+    [[ "$output" == *'possibly port 22000 in use'* ]]
+    ! grep -Eq ' stop| restart' "$DOTFILES_TEST_ROOT/ssh-calls"
+}
+
+@test "SSH refuses foreign service names, directories and symlinks" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    mkdir -p "$DOTFILES_TEST_ROOT/etc/init.d"
+    echo foreign >"$DOTFILES_TEST_ROOT/etc/init.d/dotfiles-sshd"
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" != 0 ]
+    [ "$(cat "$DOTFILES_TEST_ROOT/etc/init.d/dotfiles-sshd")" = foreign ]
+    [ ! -e "$DOTFILES_TEST_ROOT/calls" ]
+    rm "$DOTFILES_TEST_ROOT/etc/init.d/dotfiles-sshd"
+    mkdir -p "$DOTFILES_TEST_ROOT/etc/ssh"
+    ln -s "$BATS_TEST_TMPDIR/external" "$DOTFILES_TEST_ROOT/etc/ssh/dotfiles-lite"
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" != 0 ]
+    [ ! -e "$BATS_TEST_TMPDIR/external" ]
+}
+
+@test "SSH fixtures cannot fall through to a host key generator or daemon" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    rm "$DOTFILES_TEST_ROOT/usr/bin/ssh-keygen"
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" != 0 ]
+    [[ "$output" == *'SSH prerequisite missing:'* ]]
+    [ ! -e "$DOTFILES_TEST_ROOT/ssh-calls" ]
+}
+
+@test "SSH reports missing password without changing account or auth files" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    echo 'root:!:0:0:99999:7:::' >"$DOTFILES_TEST_ROOT/etc/shadow"
+    cp "$DOTFILES_TEST_ROOT/etc/shadow" "$BATS_TEST_TMPDIR/shadow-before"
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" = 0 ]
+    [[ "$output" == *'SSH login pending'* ]]
+    cmp "$DOTFILES_TEST_ROOT/etc/shadow" "$BATS_TEST_TMPDIR/shadow-before"
+    grep -q '^PermitEmptyPasswords no$' "$DOTFILES_TEST_ROOT/etc/ssh/dotfiles-lite/sshd_config"
+    grep -q '^Subsystem sftp internal-sftp$' "$DOTFILES_TEST_ROOT/etc/ssh/dotfiles-lite/sshd_config"
+    [ ! -f "$HOME/.ssh/authorized_keys" ]
+}
+
+@test "SSH and Finder init answers persist and apply does not restore stale data" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    [ -n "$REAL_CHEZMOI" ] || skip 'chezmoi required'
+    source_copy="$BATS_TEST_TMPDIR/ssh-init-source"
+    mkdir -p "$source_copy"
+    cp -R "$REPO/scripts" "$REPO/config" "$REPO/home" "$REPO/.chezmoiroot" "$source_copy/"
+    run "$REAL_CHEZMOI" --config "$CHEZMOI_CONFIG" init --promptDefaults --source "$source_copy" --destination "$HOME" --apply
+    [ "$status" = 0 ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/sshd")" = on ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/finder")" = on ]
+    run sh "$source_copy/scripts/manage.sh" --prepare-sshd --sshd off
+    [ "$status" = 0 ]
+    run sh "$source_copy/scripts/manage.sh" --prepare-finder --finder off
+    [ "$status" = 0 ]
+    run "$REAL_CHEZMOI" --config "$CHEZMOI_CONFIG" apply
+    [ "$status" = 0 ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/sshd")" = off ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/finder")" = off ]
+    [ ! -L "$DOTFILES_TEST_ROOT/etc/runlevels/default/dotfiles-sshd" ]
+    [ ! -L "$DOTFILES_TEST_ROOT/etc/runlevels/default/dotfiles-finder" ]
+    run "$REAL_CHEZMOI" --config "$CHEZMOI_CONFIG" init --promptBool 'Enable iSH SSH server=true' --promptBool 'Mount iSH Finder files=true' --source "$source_copy" --destination "$HOME" --apply
+    [ "$status" = 0 ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/sshd")" = on ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/finder")" = on ]
+}
+
+@test "Finder defaults on independently of SSH and mounts only once across setup runs" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    run sh "$REPO/bootstrap.sh" --manager sh --sshd off
+    [ "$status" = 0 ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/finder")" = on ]
+    [ -x "$DOTFILES_TEST_ROOT/usr/local/libexec/dotfiles-finder" ]
+    [ -L "$DOTFILES_TEST_ROOT/etc/runlevels/default/dotfiles-finder" ]
+    [ ! -e "$DOTFILES_TEST_ROOT/etc/init.d/dotfiles-sshd" ]
+    run sh "$REPO/bootstrap.sh" --prepare-finder
+    [ "$status" = 0 ]
+    [ "$(wc -l <"$DOTFILES_TEST_ROOT/finder-calls" | tr -d ' ')" = 1 ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/manager")" = sh ]
+}
+
+@test "Finder preserves a correct manual mount and disabling retains shared files" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    mkdir -p "$DOTFILES_TEST_ROOT/mnt/finder"
+    echo shared-file >"$DOTFILES_TEST_ROOT/mnt/finder/shared.txt"
+    printf '/private%s %s real rw 0 0\n' "$(cat "$DOTFILES_TEST_ROOT/proc/ish/documents")" "$DOTFILES_TEST_ROOT/mnt/finder" >"$DOTFILES_TEST_ROOT/proc/mounts"
+    cp "$DOTFILES_TEST_ROOT/proc/mounts" "$BATS_TEST_TMPDIR/mounts-before"
+    run sh "$REPO/bootstrap.sh" --prepare-finder
+    [ "$status" = 0 ]
+    [ ! -f "$DOTFILES_TEST_ROOT/finder-calls" ]
+    run sh "$REPO/bootstrap.sh" --prepare-finder --finder off
+    [ "$status" = 0 ]
+    [ ! -L "$DOTFILES_TEST_ROOT/etc/runlevels/default/dotfiles-finder" ]
+    [ "$(cat "$DOTFILES_TEST_ROOT/mnt/finder/shared.txt")" = shared-file ]
+    cmp "$DOTFILES_TEST_ROOT/proc/mounts" "$BATS_TEST_TMPDIR/mounts-before"
+    [ -x "$DOTFILES_TEST_ROOT/usr/local/libexec/dotfiles-finder" ]
+    ! grep -q 'rc-service .* stop' "$DOTFILES_TEST_ROOT/finder-service-calls"
+}
+
+@test "Finder refuses hidden contents, symlinks, foreign and nested mounts" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    mkdir -p "$DOTFILES_TEST_ROOT/mnt/finder"
+    echo keep >"$DOTFILES_TEST_ROOT/mnt/finder/.hidden"
+    run sh "$REPO/bootstrap.sh" --prepare-finder
+    [ "$status" != 0 ]
+    [[ "$output" == *'Nonempty /mnt/finder preserved'* ]]
+    [ ! -f "$DOTFILES_TEST_ROOT/calls" ]
+    rm "$DOTFILES_TEST_ROOT/mnt/finder/.hidden"
+    rmdir "$DOTFILES_TEST_ROOT/mnt/finder"
+    ln -s "$BATS_TEST_TMPDIR/external" "$DOTFILES_TEST_ROOT/mnt/finder"
+    run sh "$REPO/bootstrap.sh" --prepare-finder
+    [ "$status" != 0 ]
+    [ ! -e "$BATS_TEST_TMPDIR/external" ]
+    rm "$DOTFILES_TEST_ROOT/mnt/finder"
+    mkdir "$DOTFILES_TEST_ROOT/mnt/finder"
+    for target in "$DOTFILES_TEST_ROOT/mnt/finder" "$DOTFILES_TEST_ROOT/mnt/finder/nested"; do
+        printf '/foreign %s real rw 0 0\n' "$target" >"$DOTFILES_TEST_ROOT/proc/mounts"
+        run sh "$REPO/bootstrap.sh" --prepare-finder
+        [ "$status" != 0 ]
+        [[ "$output" == *'Existing mount at or below /mnt/finder preserved'* ]]
+    done
+    [ ! -f "$DOTFILES_TEST_ROOT/finder-calls" ]
+    [ ! -e "$DOTFILES_TEST_ROOT/etc/init.d/dotfiles-finder" ]
+}
+
+@test "Finder boot helper rereads relocated Documents without depending on the checkout" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    run sh "$REPO/bootstrap.sh" --prepare-finder
+    [ "$status" = 0 ]
+    : >"$DOTFILES_TEST_ROOT/proc/mounts"
+    printf '%s\n' '/var/mobile/Containers/Data/Application/new id\literal/Documents' >"$DOTFILES_TEST_ROOT/proc/ish/documents"
+    run env DOTFILES_REPO=/nonexistent sh "$DOTFILES_TEST_ROOT/usr/local/libexec/dotfiles-finder" mount
+    [ "$status" = 0 ]
+    run sh "$DOTFILES_TEST_ROOT/usr/local/libexec/dotfiles-finder" status
+    [ "$status" = 0 ]
+    [ "$(wc -l <"$DOTFILES_TEST_ROOT/finder-calls" | tr -d ' ')" = 2 ]
+    grep -Fq 'new id\literal/Documents' "$DOTFILES_TEST_ROOT/finder-calls"
+}
+
+@test "Finder mount failures and missing fixture mount cannot activate autostart" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    export FAIL_FINDER_MOUNT=1
+    run sh "$REPO/bootstrap.sh" --prepare-finder
+    [ "$status" != 0 ]
+    [ ! -L "$DOTFILES_TEST_ROOT/etc/runlevels/default/dotfiles-finder" ]
+    rm "$DOTFILES_TEST_ROOT/bin/mount" "$DOTFILES_TEST_ROOT/finder-calls"
+    run sh "$REPO/bootstrap.sh" --prepare-finder
+    [ "$status" != 0 ]
+    [[ "$output" == *'Finder prerequisite missing:'* ]]
+    [ ! -f "$DOTFILES_TEST_ROOT/finder-calls" ]
+    [ ! -L "$DOTFILES_TEST_ROOT/etc/runlevels/default/dotfiles-finder" ]
+}
+
+@test "Finder dry-run, config-only and saved off do not mount or register" {
+    [ "$TEST_PLATFORM" = ish ] || skip 'iSH only'
+    run sh "$REPO/bootstrap.sh" --prepare-finder --dry-run
+    [ "$status" = 0 ]
+    [ ! -e "$HOME/.local/state/dotfiles-lite/finder" ]
+    run sh "$REPO/bootstrap.sh" --manager sh --config-only --finder off
+    [ "$status" = 0 ]
+    run sh "$REPO/bootstrap.sh" --prepare-finder
+    [ "$status" = 0 ]
+    [ "$(cat "$HOME/.local/state/dotfiles-lite/finder")" = off ]
+    [ ! -f "$DOTFILES_TEST_ROOT/finder-calls" ]
+    [ ! -e "$DOTFILES_TEST_ROOT/etc/init.d/dotfiles-finder" ]
+}
+
+@test "OpenWrt rejects SSH server options without target changes" {
+    [ "$TEST_PLATFORM" = openwrt ] || skip 'OpenWrt only'
+    run sh "$REPO/bootstrap.sh" --sshd on
+    [ "$status" != 0 ]
+    [ ! -e "$DOTFILES_TEST_ROOT/calls" ]
+    run sh "$REPO/bootstrap.sh" --prepare-sshd
+    [ "$status" != 0 ]
+    [ ! -e "$DOTFILES_TEST_ROOT/calls" ]
+}
+
+@test "OpenWrt rejects Finder mount options without target changes" {
+    [ "$TEST_PLATFORM" = openwrt ] || skip 'OpenWrt only'
+    run sh "$REPO/bootstrap.sh" --finder on
+    [ "$status" != 0 ]
+    run sh "$REPO/bootstrap.sh" --prepare-finder
+    [ "$status" != 0 ]
+    [ ! -e "$DOTFILES_TEST_ROOT/calls" ]
+    [ ! -e "$DOTFILES_TEST_ROOT/mnt/finder" ]
 }
 
 

@@ -1,2 +1,21 @@
+{{- $sshOn := true -}}
+{{- $sshState := joinPath .chezmoi.homeDir ".local" "state" "dotfiles-lite" "sshd" -}}
+{{- if stat $sshState -}}
+{{- $sshOn = eq (trim (include $sshState)) "on" -}}
+{{- end -}}
+{{- $finderOn := true -}}
+{{- $finderState := joinPath .chezmoi.homeDir ".local" "state" "dotfiles-lite" "finder" -}}
+{{- if stat $finderState -}}
+{{- $finderOn = eq (trim (include $finderState)) "on" -}}
+{{- end -}}
+{{- if eq .chezmoi.command "init" -}}
+{{- $sshOn = promptBool "Enable iSH SSH server" $sshOn -}}
+{{- $finderOn = promptBool "Mount iSH Finder files" $finderOn -}}
+{{- end -}}
 sourceDir = {{ .chezmoi.workingTree | quote }}
 {{ includeTemplate (joinPath .chezmoi.workingTree "config" "chezmoi-update.toml.tmpl") . }}
+
+[data]
+# Used as an initialization choice only; subsequent apply/update reads local state.
+ishSshd = {{ $sshOn }}
+ishFinder = {{ $finderOn }}

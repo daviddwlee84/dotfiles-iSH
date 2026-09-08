@@ -36,6 +36,7 @@ Someday / nice-to-have.
 
 Needs a spike before committing to a real priority. Tag as `[?/Effort]`.
 - [ ] **[?/M] Validate chezmoi on an actual iSH device** — iSH 1.3.2 stalled over five minutes during the 2.72.1 probe; timeout is hardened, but runtime acceptance remains pending. Retain explicit sh recovery. → [research](backlog/validate-chezmoi-on-an-actual-ish-device.md)
+- [ ] **[?/L] Validate local agents and Herdr on iSH** — SSH test access and bounded probes are implemented; complete authenticated device workflows before enabling local-agent installers. → [research](backlog/validate-local-agents-and-herdr-on-ish.md)
 
 
 ## Done

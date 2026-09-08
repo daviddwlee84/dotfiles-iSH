@@ -60,6 +60,63 @@ load_network_preferences() {
     esac
 }
 
+load_sshd_preference() {
+    if [ "$PLATFORM" != ish ]; then
+        [ -z "${SSHD:-}${SSHD_INITIAL:-}" ] || die '--sshd is an iSH-only option; OpenWrt SSH is left to the device.'
+        return
+    fi
+    case "${SSHD_INITIAL:-}" in ''|on|off) ;; *) die 'Expected --sshd-initial on|off' ;; esac
+    if [ -z "${SSHD:-}" ] && [ -f "$STATE/sshd" ]; then SSHD=$(cat "$STATE/sshd"); fi
+    SSHD=${SSHD:-${SSHD_INITIAL:-on}}
+    case "$SSHD" in on|off) ;; *) die 'Expected --sshd on|off' ;; esac
+}
+
+save_sshd_preference() (
+    [ "$PLATFORM" = ish ] || exit 0
+    mkdir -p "$STATE"
+    [ ! -L "$STATE/sshd" ] || { warn 'SSH preference symlink preserved'; exit 1; }
+    ssh_state_tmp=$(mktemp "$STATE/.sshd.XXXXXX")
+    printf '%s\n' "$SSHD" >"$ssh_state_tmp"
+    chmod 600 "$ssh_state_tmp"
+    mv "$ssh_state_tmp" "$STATE/sshd"
+)
+
+prepare_sshd() (
+    [ "$PLATFORM" = ish ] || exit 0
+    # Save this independent preference even if a later chezmoi probe fails.
+    save_sshd_preference || exit 1
+    export DOTFILES_SSHD="$SSHD" DOTFILES_PACKAGE_NETWORK="$PACKAGE_NETWORK"
+    sh "$REPO/scripts/sshd.sh"
+)
+
+load_finder_preference() {
+    if [ "$PLATFORM" != ish ]; then
+        [ -z "${FINDER:-}${FINDER_INITIAL:-}" ] || die '--finder is an iSH-only option.'
+        return
+    fi
+    case "${FINDER_INITIAL:-}" in ''|on|off) ;; *) die 'Expected --finder-initial on|off' ;; esac
+    if [ -z "${FINDER:-}" ] && [ -f "$STATE/finder" ]; then FINDER=$(cat "$STATE/finder"); fi
+    FINDER=${FINDER:-${FINDER_INITIAL:-on}}
+    case "$FINDER" in on|off) ;; *) die 'Expected --finder on|off' ;; esac
+}
+
+save_finder_preference() (
+    [ "$PLATFORM" = ish ] || exit 0
+    mkdir -p "$STATE"
+    [ ! -L "$STATE/finder" ] || { warn 'Finder preference symlink preserved'; exit 1; }
+    finder_state_tmp=$(mktemp "$STATE/.finder.XXXXXX")
+    printf '%s\n' "$FINDER" >"$finder_state_tmp"
+    chmod 600 "$finder_state_tmp"
+    mv "$finder_state_tmp" "$STATE/finder"
+)
+
+prepare_finder() (
+    [ "$PLATFORM" = ish ] || exit 0
+    save_finder_preference || exit 1
+    export DOTFILES_FINDER="$FINDER" DOTFILES_PACKAGE_NETWORK="$PACKAGE_NETWORK"
+    sh "$REPO/scripts/finder.sh"
+)
+
 source_command() (
     case "${SOURCE_NETWORK:-inherit}" in
         direct)
@@ -230,6 +287,7 @@ validate_options() {
     for option in $WITH; do
         case "$option" in
             dev|starship) ;;
+            hako|pi|gemini) die "$option awaits iSH device workflow acceptance; see docs/experiments.md" ;;
             herdr|specstory|codex) [ "$PLATFORM" = openwrt ] || die "$option is remote-only on iSH; no local installer is offered." ;;
             *) die "Unknown optional group/tool: $option" ;;
         esac
@@ -240,6 +298,10 @@ packages() {
     [ "$PLATFORM" != ish ] || say "Alpine repositories: $(branch_description); keeping current feeds."
     install_packages "$REPO/config/packages-base.txt" || return 1
     OPTIONAL_FAILED=0
+    if [ "$PLATFORM" = ish ]; then
+        prepare_sshd || OPTIONAL_FAILED=1
+        prepare_finder || OPTIONAL_FAILED=1
+    fi
     for option in $WITH; do
         case "$option" in
             dev) install_packages "$REPO/config/packages-dev.txt" || OPTIONAL_FAILED=1 ;;
@@ -369,7 +431,7 @@ apply_chezmoi() {
         # Render config without init: Git is prepared above; config-only stays offline.
         mkdir -p "$(dirname "$config")"
         config_tmp=$(mktemp "$(dirname "$config")/.dotfiles-chezmoi.XXXXXX")
-        if ! chezmoi --config "$config" execute-template --source "$REPO" --destination "$HOME" <"$REPO/home/.chezmoi.toml.tmpl" >"$config_tmp"; then
+        if ! chezmoi --config "$config" execute-template --init --source "$REPO" --destination "$HOME" <"$REPO/home/.chezmoi.toml.tmpl" >"$config_tmp"; then
             rm -f "$config_tmp"; return 1
         fi
         chmod 600 "$config_tmp"
@@ -394,6 +456,8 @@ record_state() {
     mkdir -p "$STATE"
     printf '%s\n' "$SELECTED" >"$STATE/manager"
     printf '%s\n' "$WITH" >"$STATE/options"
+    save_sshd_preference
+    save_finder_preference
     # Direct chezmoi commands may have one-shot environment overrides. Only
     # explicit setup persists connectivity choices, never the post-apply hook.
     if [ "${ACTION:-setup}" != record ]; then
@@ -406,6 +470,10 @@ doctor() {
     say "Platform=$PLATFORM arch=$ARCH package-manager=$PM"
     [ "$PLATFORM" != ish ] || say "Alpine repositories: $(branch_description)"
     say "Manager: $(cat "$STATE/manager" 2>/dev/null || printf unconfigured)"
+    if [ "$PLATFORM" = ish ]; then
+        sh "$REPO/scripts/sshd.sh" --status || return 1
+        sh "$REPO/scripts/finder.sh" --status || return 1
+    fi
     if [ -r "$SYSROOT/proc/meminfo" ]; then awk '/^MemTotal:|^MemAvailable:/ {print}' "$SYSROOT/proc/meminfo"; fi
     df -Pk "$HOME"
     failed=0

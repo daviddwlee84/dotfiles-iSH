@@ -23,6 +23,9 @@ plugins:
             Verification: 驗證與維護
             iOS terminals: iOS 終端機
             System upgrades: 系統升級
+            SSH server: SSH 伺服器
+            Finder files: Finder 檔案共享
+            Experiments: 實驗與驗證
 nav:
   - Home: index.md
   - Setup: setup.md
@@ -31,3 +34,6 @@ nav:
   - Verification: verification.md
   - iOS terminals: ios-terminals.md
   - System upgrades: system-upgrade.md
+  - SSH server: ssh-server.md
+  - Finder files: finder-files.md
+  - Experiments: experiments.md
