@@ -88,7 +88,7 @@ Pitfalls owned by this folder. Keep alphabetical.
 
 | Slug | Symptom keywords | Status |
 |---|---|---|
-| [chezmoi-probe-waits-past-timeout](chezmoi-probe-waits-past-timeout.md) | chezmoi, not found, timeout, SIGKILL, supported | sh mode has no binary; locked candidate still fails device acceptance |
+| [chezmoi-probe-waits-past-timeout](chezmoi-probe-waits-past-timeout.md) | chezmoi, apk, not found, timeout, SIGSEGV, Go GC | official version matrix fails; keep the iPad on sh manager |
 | [herdr-server-spawn-invalid-argument](herdr-server-spawn-invalid-argument.md) | failed to spawn herdr server, Invalid argument, pre_exec, FIONBIO | CLI pane I/O and reattach pass; resize and iPad workflow pending |
 | [ish-illegal-instruction-despite-sse2](ish-illegal-instruction-despite-sse2.md) | Illegal instruction, SIGILL, Bad system call | corrected historical claims; version-specific acceptance pending |
 | [ish-tmux-ctrl-digit-dead-wrong-binding](ish-tmux-ctrl-digit-dead-wrong-binding.md) | Ctrl+digits, mouse, extended keys | minimal tmux seed supplied; device acceptance pending |

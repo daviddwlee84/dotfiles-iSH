@@ -1,0 +1,77 @@
+{
+  "date": "2026-09-08",
+  "status": "no reliable chezmoi binary found for the original iSH App",
+  "minimum_repository_capability": {
+    "feature": ".chezmoi.workingTree",
+    "first_release": "2.9.1"
+  },
+  "official_binaries": [
+    {
+      "version": "2.0.16-r3",
+      "source": "Alpine 3.14 community/x86 APK",
+      "archive_sha256": "d4ee38847c6be0d224425c80ba65912af647510d636b0494bc008c1276c4dbf3",
+      "binary_sha256": "a76b5d34d5a2d22b6d3cda9483df70e9f50b230dab37039d1bbb13b926488357",
+      "working_tree_capability": false,
+      "result": "timeouts, SIGSEGV, unaligned 64-bit atomic and Go GC state failures; runtime flags were non-deterministic"
+    },
+    {
+      "version": "2.9.1",
+      "source": "upstream linux_i386 release",
+      "archive_sha256": "9797fd5c13320ee5db5b7c327d786412fe2720507170f3d8b08a19961443328f",
+      "binary_sha256": "82be08f49a35916018f3bf731d3b484e30821f5f0dc5ffc49ca624f75cd625a4",
+      "working_tree_capability": true,
+      "result": "signal-stack/GC failures, timeouts or SIGSEGV; GOMAXPROCS=1 and asyncpreemptoff did not produce clean exits"
+    },
+    {
+      "version": "2.20.0",
+      "source": "upstream linux_i386 release",
+      "archive_sha256": "226f02006a4df7758f32b8d44af7d22ee9fe89d677e7c0e6c2ee72e76beb631d",
+      "binary_sha256": "1977964ee0969bb0afb800093a427ea5479736832c29d983058a166080bddce1",
+      "working_tree_capability": true,
+      "result": "version and template probes timed out"
+    },
+    {
+      "version": "2.40.0",
+      "source": "upstream linux_i386 release",
+      "archive_sha256": "a034d739326166ebeb6c2e6304d778bb3e2cd6321270e4f2da1428b5b83eda68",
+      "binary_sha256": "3a451084d724226f2c78ff5653cee77271279b57bcc57c880d736ee3d9d6081b",
+      "working_tree_capability": true,
+      "result": "version output followed by SIGSEGV; template probe timed out"
+    },
+    {
+      "version": "2.72.1",
+      "source": "upstream linux_i386 release",
+      "archive_sha256": "09506e55f48e5ee2dac76390ebf436499dcb45dc80871d5daccfef5bd3d0c439",
+      "binary_sha256": "c35b8e1933f74e724e3f4ef9e830386e7a60dbf65c49defe5f45ec45f45d8ca0",
+      "working_tree_capability": true,
+      "result": "version output followed by SIGSEGV; template probe hit Go scheduler failure or timeout"
+    }
+  ],
+  "runtime_flag_matrix": [
+    "GOMAXPROCS=1",
+    "GODEBUG=asyncpreemptoff=1",
+    "GOMAXPROCS=1 plus GODEBUG=asyncpreemptoff=1",
+    "the preceding combination plus GOGC=off"
+  ],
+  "patched_ish_cli": {
+    "base_commit": "d189985e5cc6d0e70629efeb31505b51a9ce78af",
+    "binary_sha256": "95ad8e71924f99ac3c24d3f89f9862bdd8ee6317dd7677911e83ceb307866b3d",
+    "upstream_pr_commits": [
+      "9bdd2789d958f04e3e32f9b4ad0276ff9fa57496",
+      "a761323b07609b4ab155150b4bff0ab6bf84f182"
+    ],
+    "changes": [
+      "allow Go to install its SIGURG async-preemption handler",
+      "implement FUTEX_WAIT_BITSET and FUTEX_WAKE_BITSET"
+    ],
+    "result": "insufficient: chezmoi 2.72.1 and Alpine 2.0.16 still fail non-deterministically"
+  },
+  "original_device": {
+    "version_tested": "2.72.1",
+    "result": "version exited, template printed supported but did not exit; user observed the iSH App crash",
+    "installed": false,
+    "manager_after_test": "sh"
+  },
+  "acceptance_rule": "printed output is insufficient; every probe and apply/update command must exit successfully and repeatably",
+  "decision": "keep the iPad on the sh manager; do not install or auto-select chezmoi"
+}

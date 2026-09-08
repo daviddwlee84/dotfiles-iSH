@@ -610,3 +610,16 @@ passes checks and a full workflow can be validated. Plain version/template outpu
 is not acceptance. The separate kernel crash diagnostic branch was stopped after
 automatic review rejected it for possible cybersecurity risk; no result from
 that incomplete branch is counted as a compatibility pass.
+
+The follow-up matrix tested upstream i386 2.9.1, 2.20.0 and 2.40.0 plus Alpine
+3.14's 2.0.16-r3. All failed repeatable clean-exit gates. The Alpine package was
+occasionally able to print a version and exit 0 with single-processor or disabled
+async-preemption settings, but repeats and template/help paths still timed out or
+crashed. It also lacks `.chezmoi.workingTree`, introduced in 2.9.1.
+
+For an upstream-kernel comparison, a separate CLI at the pinned iSH base was
+rebuilt with open PR 2744 (SIGURG handler registration) and PR 2775 (futex bitset
+operations). Modern 2.72.1 and Alpine 2.0.16 still failed in Go runtime/GC paths.
+This rules out package pinning and those two kernel fixes as sufficient solutions.
+The device remains `manager=sh`; no chezmoi candidate was installed. Full hashes
+and case summaries are in `experiments/chezmoi/version-matrix.json`.

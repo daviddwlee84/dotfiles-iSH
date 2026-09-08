@@ -188,6 +188,20 @@ retained. See `experiments/chezmoi/results.json` and the
 Full setup should only migrate after the locked candidate can complete its checks;
 printed output alone is insufficient.
 
+Older packages do not provide a safe fallback. Official i386 releases 2.9.1,
+2.20.0 and 2.40.0 failed with signal-stack/GC errors, timeouts or SIGSEGV.
+Alpine 3.14's packaged 2.0.16-r3 occasionally completed a version command with
+single-processor or asynchronous-preemption settings, but repeated version,
+template and help commands still crashed. It also predates the
+`.chezmoi.workingTree` capability introduced in 2.9.1.
+
+An isolated CLI was rebuilt with iSH upstream's open SIGURG and futex-bitset
+fixes ([PR 2744](https://github.com/ish-app/ish/pull/2744) and
+[PR 2775](https://github.com/ish-app/ish/pull/2775)). Both 2.72.1 and Alpine
+2.0.16 remained non-deterministic. `apk add chezmoi` can therefore install a
+file, but it does not establish a usable manager on this App. Keep `manager=sh`;
+the complete matrix is in `experiments/chezmoi/version-matrix.json`.
+
 ## Experimental iSH Rust standard library
 
 The private Rust 1.96.1 build now covers the process-spawn and relative-sleep

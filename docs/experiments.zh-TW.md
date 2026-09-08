@@ -168,6 +168,19 @@ CLI 對照也失敗：七項以模擬器 SIGSEGV 結束，一項出現 Go runtim
 [逾時 pitfall](https://github.com/daviddwlee84/dotfiles-iSH/blob/main/pitfalls/chezmoi-probe-waits-past-timeout.md)。
 鎖定候選檔能完整通過檢查後，才適合由完整 setup 遷移；只有印出結果不足以通過。
 
+舊版 package 也不是安全 fallback。官方 i386 版 2.9.1、2.20.0、2.40.0
+分別出現 signal-stack／GC 錯誤、逾時或 SIGSEGV。Alpine 3.14 內建的
+2.0.16-r3 在限制單處理器或停用非同步搶佔時，偶爾能完成版號命令；但重複執行
+version、template、help 仍會崩潰，而且它早於 2.9.1 才加入的
+`.chezmoi.workingTree` 能力。
+
+另以 iSH upstream 尚未合併的 SIGURG 與 futex-bitset 修正
+（[PR 2744](https://github.com/ish-app/ish/pull/2744)、
+[PR 2775](https://github.com/ish-app/ish/pull/2775)）重建隔離 CLI，2.72.1 與
+Alpine 2.0.16 仍不穩定。因此 `apk add chezmoi` 只能證明檔案可安裝，不能證明
+這個 App 上的 manager 可用。維持 `manager=sh`；完整矩陣見
+`experiments/chezmoi/version-matrix.json`。
+
 ## iSH 專用 Rust 標準庫實驗
 
 獨立建置的 Rust 1.96.1 已涵蓋子程序啟動與相對休眠的相容性缺口。擴充版在

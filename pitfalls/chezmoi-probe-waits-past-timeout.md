@@ -66,3 +66,23 @@ fatal error: unexpected signal during runtime execution
 a passing CLI process. These settings were not persisted on the device. Full
 results are in `experiments/chezmoi/results.json`. Keep the working sh deployment;
 do not treat printed output as a successful probe or bypass the exit-status gate.
+
+## Version and upstream-fix matrix
+
+Pinning an older release does not solve the runtime problem. Official i386
+versions 2.9.1, 2.20.0, 2.40.0 and 2.72.1 all failed clean-exit checks. Alpine
+3.14's packaged 2.0.16-r3 also failed with combinations of timeouts, SIGSEGV,
+unaligned 64-bit atomics and Go GC state errors. Some 2.0.16 version commands
+exited 0 with `GOMAXPROCS=1` or async preemption disabled, but repeats and
+template/help commands still crashed. That non-determinism is not acceptance.
+
+An isolated iSH CLI was also rebuilt with upstream PR 2744's SIGURG change and
+PR 2775's futex bitset implementation. Both modern 2.72.1 and Alpine 2.0.16
+continued to fail. Those two kernel fixes are useful but insufficient for
+chezmoi. See `experiments/chezmoi/version-matrix.json`.
+
+The Alpine package therefore provides installability only. It does not establish
+runtime stability, and 2.0.16 also predates the `.chezmoi.workingTree` capability
+required by this repository. Keep `manager=sh` on the original App. A future
+chezmoi route needs additional iSH/Go-runtime work and the full repeated
+version/template/apply/update acceptance sequence.
