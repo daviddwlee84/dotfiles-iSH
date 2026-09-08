@@ -65,8 +65,11 @@ key and ran remote shell commands. The device reports iSH 1.3.2 (494), Alpine
 3.14.3, i686 and OpenRC default, with SSH started. Some later connections stalled
 before the banner; the user reopened iSH and connectivity returned. That
 intermittent issue remains unconfirmed. iPadOS version is not yet recorded.
-The user also confirms hako opens and Herdr reproduces server spawn error 22.
-These are startup observations, not authenticated agent-workflow acceptance.
+The user also confirms hako opens. The initial stock-std Herdr reproduced server
+spawn error 22; the later compatibility binary was installed at
+`~/.local/bin/herdr` with exact size/hash and version verified, and the user
+reports that it runs. Detailed session/resize and authenticated agent-workflow
+acceptance remain pending.
 
 Subsequent direct checks passed SSH PTY input/output and terminal sizing, legacy
 SCP upload/download byte comparison, and SHA-256-verified SSH archive/binary

@@ -25,6 +25,7 @@ plugins:
             System upgrades: 系統升級
             SSH server: SSH 伺服器
             Finder files: Finder 檔案共享
+            Herdr on iSH: iSH 上的 Herdr
             Experiments: 實驗與驗證
 nav:
   - Home: index.md
@@ -36,4 +37,5 @@ nav:
   - System upgrades: system-upgrade.md
   - SSH server: ssh-server.md
   - Finder files: finder-files.md
+  - Herdr on iSH: herdr-ish.md
   - Experiments: experiments.md

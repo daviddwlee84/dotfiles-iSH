@@ -6,7 +6,8 @@ SSH 設定提供測試通道。
 
 2026-09-08 更新：程序／休眠相容版 Rust 標準庫已在 **iPad 原版 App 通過 18/18 項**。
 重新建置的 Herdr 已通過 CLI server、pane、shell I/O、detach 及相同 pane reattach。
-CLI host resize 傳遞與 iPad 原版 App 的 Herdr 工作流程仍待驗收。
+完整 binary 已安裝到原版 iPad 的 `~/.local/bin/herdr`，大小／SHA-256 相符且版本
+檢查成功。CLI host resize 傳遞與有完整紀錄的 iPad Herdr 工作流程仍待驗收。
 
 ## 環境與順序
 
@@ -40,6 +41,18 @@ sh scripts/build-hako.sh --zig /path/to/zig --output /tmp/hako-i586
 它建立 32 位元靜態產物並印出 hash，不安裝到系統。Zig 下載需先核對官方 checksum。
 `--source CHECKOUT` 可重用確切版本且沒有修改的 checkout。
 
+維護者用的 Herdr recipe 固定 upstream v0.9.0、Rust、rust-src、Zig 與已審查的
+相容 patches。它在 x86_64 Linux 執行，產生 binary、manifest、checksums 與建議的
+`assets.lock` row，不執行安裝：
+
+```sh
+sh scripts/build-herdr-ish.sh --print-plan
+sh scripts/build-herdr-ish.sh --version v0.9.0 --output /tmp/herdr-ish
+```
+
+對應的 Actions workflow 每週偵測 upstream release，只能手動觸發建置；發布還要
+明確確認原版實機驗收。詳見 [iSH 上的 Herdr](herdr-ish.md)。
+
 完成可信任的公鑰 SSH 設定後，在 Mac 執行：
 
 ```sh
@@ -64,7 +77,8 @@ Agent cases 只驗證啟動；之後繼續測互動 SSH 工作流程。記錄確
 | hako-code v0.2.3 | C／libc／pthread 加 curl；使用者確認傳入的 binary 可在 iPad 開啟 | 已回報啟動；登入後工具待驗收 |
 | Pi 0.73.1 | Node；須檢查間接版本要求及 ia32 下載器 | 待驗收 |
 | Gemini 0.58.0 | Node 與 child-process fallback；仍有間接版本要求 | 待驗收 |
-| Herdr v0.8.2 | 相容 std 通過 18/18 項實機測試；重建版 CLI session 支援 pane I/O 與 reattach | iPad 原版 App session 與 resize 待驗收 |
+| Herdr v0.8.2 | 相容 std 通過 18/18 項實機測試；重建版 CLI session 支援 pane I/O 與 reattach | 已安裝並核對完整 hash／版本；詳細 iPad session 與 resize 待驗收 |
+| Herdr v0.9.0 | 已鎖定確切 upstream commit 與完整相容 patch stack；原生建置及 CLI pane I/O／reattach 通過 | CLI resize 失敗；原版 iPad 暫存傳輸／驗收待續 |
 
 2026-09-08 host 結果：hako v0.2.3 分別以 Alpine GCC 10.3、Zig 0.15.2 建置成功，
 兩個靜態 binary 都在 iSH 命令列模擬器 commit
@@ -105,9 +119,12 @@ Session／PTY 與實機驗收未通過，因此不開啟 Herdr installer。
 
 已成功用 `mount -t real "$(cat /proc/ish/documents)" /mnt/finder` 讀取 Finder
 傳入的檔案。使用者回報傳入的 hako binary 可正常開啟；尚未回報登入、模型對話與
-讀檔／修改／shell tools 通過。傳入的 Herdr binary 則出現
+讀檔／修改／shell tools 通過。最初傳入、使用原版 std 的 Herdr binary 出現
 `herdr: failed to spawn herdr server: Invalid argument (os error 22)`，
-與上述 CLI 症狀一致，未建立 session。
+與上述 CLI 症狀一致，未建立 session。後續相容 build 已完整傳入，原子提升到
+`~/.local/bin/herdr`，並核對為 21,556,492 bytes、SHA-256
+`3ede5a4aed39470a67a66453b305f086bf51275c03d7bd0c16c513beb3dd9809`。
+使用者回報可執行；詳細 pane／resize／agent 紀錄仍待補齊。
 
 SSH 設定從 iSH Alpine 3.14 snapshot 安裝 OpenRC 0.43.3-r3 後，停在
 `SSH prerequisite missing: /sbin/rc-status`。安裝器和 fixture 的路徑都寫錯：
@@ -257,8 +274,15 @@ Herdr 另需 local socket 相容路徑：iSH 使用 Rust UnixListener／UnixStre
 `interprocess`。最終 CLI binary（`3ede5a4a…d9809`）可啟動 server 與 pane、完成
 client handshake、通過 shell 輸入輸出、detach，並 reattach 到同一 pane 與 shell
 PID。Host PTY 從 44x132 改為 55x172 後，pane 仍為 43x105，resize 未傳遞；owned
-server 仍正常停止。因 SSH 在暫存上傳前逾時，iPad 原版 App 測試待續，沒有安裝。
-詳見 `experiments/herdr/results.json`。
+server 仍正常停止。完整 binary 現已安裝到原版 iPad，且通過 hash／版本檢查；
+詳細 session 與 resize 仍待驗收。詳見 `experiments/herdr/results.json`。
+
+同一移植已更新到 Herdr v0.9.0 commit
+`b99002ac99b09e00b4ca692436cb15a6b0d676f1`。24,286,088-byte ELF32 binary
+（`fe35d658…672af`）建置成功，並在 CLI guest 回報 `herdr 0.9.0`。Named session、
+pane I/O、detach、相同 PID reattach 與停止測試 server 都通過。Host resize 仍停在
+43x105，與 v0.8.2 CLI 限制相同。因 SSH 在 banner exchange 逾時，原版 iPad 暫存
+傳輸待續；裝置仍保留 v0.8.2。詳見 `experiments/herdr/v0.9.0-results.json`。
 
 另以實際 vendored `portable-pty` 與相符的相容 std，在全新的 Alpine 3.14.10
 CLI guest 執行 `experiments/portable-pty-probe.rs`。預設模式收到正確輸出與

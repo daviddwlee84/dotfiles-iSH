@@ -1,0 +1,117 @@
+name: Herdr iSH artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Reviewed upstream Herdr tag from config/herdr-build.lock
+        required: true
+        default: v0.9.0
+        type: string
+      release_revision:
+        description: Packaging revision for this iSH build
+        required: true
+        default: r1
+        type: string
+      publish:
+        description: Publish the verified artifact to this repository's GitHub Releases
+        required: true
+        default: false
+        type: boolean
+      device_accepted:
+        description: Confirm this exact build passed the original-device acceptance checks
+        required: true
+        default: false
+        type: boolean
+  schedule:
+    - cron: '17 5 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  latest:
+    runs-on: ubuntu-24.04
+    outputs:
+      locked: ${{ steps.versions.outputs.locked }}
+      latest: ${{ steps.versions.outputs.latest }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          locked=$(sed -n 's/^herdr_version=//p' config/herdr-build.lock)
+          latest=$(gh api repos/herdrdev/herdr/releases/latest --jq .tag_name)
+          printf 'locked=%s\nlatest=%s\n' "$locked" "$latest" >> "$GITHUB_OUTPUT"
+          printf 'Locked Herdr: %s\nLatest Herdr: %s\n' "$locked" "$latest" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$GITHUB_EVENT_NAME" == schedule && "$locked" != "$latest" ]]; then
+            printf 'A new Herdr release needs patch review and device acceptance before building.\n' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+  build:
+    if: github.event_name == 'workflow_dispatch'
+    needs: latest
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build locked iSH artifact
+        env:
+          VERSION: ${{ inputs.version }}
+          REVISION: ${{ inputs.release_revision }}
+        run: |
+          scripts/build-herdr-ish.sh \
+            --version "$VERSION" \
+            --release-revision "$REVISION" \
+            --output "$RUNNER_TEMP/herdr-ish"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: herdr-${{ inputs.version }}-ish-i386-${{ inputs.release_revision }}
+          path: ${{ runner.temp }}/herdr-ish/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    if: inputs.publish
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Require device acceptance before publishing
+        if: ${{ !inputs.device_accepted }}
+        run: |
+          printf 'Publishing requires acceptance of this exact artifact on an original iSH device.\n' >&2
+          exit 1
+      - uses: actions/download-artifact@v4
+        if: inputs.device_accepted
+        with:
+          name: herdr-${{ inputs.version }}-ish-i386-${{ inputs.release_revision }}
+          path: ${{ runner.temp }}/herdr-ish
+      - name: Publish GitHub Release asset
+        if: inputs.device_accepted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          REVISION: ${{ inputs.release_revision }}
+          OUTPUT: ${{ runner.temp }}/herdr-ish
+        run: |
+          set -euo pipefail
+          tag="herdr-ish-$VERSION-$REVISION"
+          artifact="herdr-$VERSION-ish-i386"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            {
+              printf 'iSH/i386 compatibility build of upstream Herdr %s.\n\n' "$VERSION"
+              printf 'See the attached manifest, verification level and SHA-256 file.\n'
+            } > "$RUNNER_TEMP/release-notes.md"
+            gh release create "$tag" --title "Herdr $VERSION for iSH ($REVISION)" --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
+          gh release upload "$tag" \
+            "$OUTPUT/$artifact" \
+            "$OUTPUT/$artifact.sha256" \
+            "$OUTPUT/manifest.json" \
+            "$OUTPUT/patches.sha256" \
+            "$OUTPUT/assets-lock-row.txt" \
+            --clobber

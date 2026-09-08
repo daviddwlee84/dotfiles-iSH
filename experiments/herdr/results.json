@@ -40,8 +40,10 @@
     "overall": "partial because CLI host-resize propagation failed"
   },
   "original_ipad": {
-    "status": "pending; SSH connection timed out before scratch upload",
-    "installation_performed": false
+    "status": "compatibility binary installed; exact size, SHA-256 and version verified over SSH; user reports it runs",
+    "path": "/root/.local/bin/herdr",
+    "installation_performed": true,
+    "detailed_session_acceptance": "pending pane, resize and real-agent transcript"
   },
   "limits": [
     "The binary is an experiment and is not enabled in bootstrap or optional installation.",

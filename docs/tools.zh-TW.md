@@ -4,9 +4,10 @@
 `--with dev` 從相同來源加裝 `jq less rsync python3`。Python 版本跟隨該分支，
 不承諾現代 wheel 或 LSP 相容。
 
-使用 ash 與精簡 profile；完整 Unix zsh、mise、Ansible、Node agents、Herdr、SpecStory
-不在本機支援範圍。chezmoi 有鎖定的 i386 binary，但 `--manager chezmoi` 在 iSH
-模擬器上仍屬實驗性。安裝不編譯原始碼，也不遷移 Alpine 分支。
+使用 ash 與精簡 profile；完整 Unix zsh、mise、Ansible、Node agents、SpecStory
+不在本機支援範圍。Herdr 已有裝置專用的實驗性 i386 build，但完成其餘驗收前不開放
+一般 installer。chezmoi 有鎖定的 i386 binary，但 `--manager chezmoi` 在 iSH
+模擬器上仍屬實驗性。目標安裝不編譯原始碼，也不遷移 Alpine 分支。
 
 `ovault [SUBDIR]` 必要時開啟 iOS Files picker，然後進入 vault。
 `OBSIDIAN_MNT` 預設 `/mnt/dq/Obsidian`，可在 local.sh 覆寫。
@@ -22,6 +23,7 @@ SSH、tmux 只 seed 新設定；tmux 用 Ctrl+b 然後 1..9，不配置 extended
 
 Agent 工作請 SSH 到 Unix 主機，在遠端 attach Herdr，再於專案中執行
 `specstory run codex` 或其他已安裝 agent。Session 與歷史留在該主機。
-參閱 [iOS 終端機](ios-terminals.md)。
+[iSH 上的 Herdr](herdr-ish.md)另記本機相容產物與 release 流程；目前支援的遠端
+工作方式見 [iOS 終端機](ios-terminals.md)。
 
 內建 ash prompt 與 `--with starship` 見 [Shell 與 Starship](shell.md)。

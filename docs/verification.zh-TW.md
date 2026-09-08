@@ -51,8 +51,9 @@ default runlevel 註冊。使用者再確認完整重開 app 一次後，可用�
 登入並執行遠端 shell 命令。實機回報 iSH 1.3.2（494）、Alpine 3.14.3、i686，
 OpenRC 位於 default，SSH 已啟動。部分後續連線卡在 banner 前，使用者重開
 iSH 後恢復連線；此間歇性問題的原因未確認，iPadOS 版本也尚未記錄。
-使用者也確認 hako 可開啟，
-Herdr 重現 server spawn error 22。這些是啟動觀察，尚非登入後 agent 工作流程驗收。
+使用者也確認 hako 可開啟。最初使用原版 std 的 Herdr 重現 server spawn error 22；
+後續相容 binary 已安裝到 `~/.local/bin/herdr`，確切大小／hash 與版本均完成核對，
+使用者回報可執行。詳細 session／resize 與登入後 agent 工作流程仍待驗收。
 
 後續直連已通過 SSH PTY 輸入輸出與尺寸設定、legacy SCP 上傳／下載逐位元組比對，
 以及 SHA-256 驗證的 SSH 壓縮包／binary 傳輸。兩種 SFTP server 都在認證後失敗，

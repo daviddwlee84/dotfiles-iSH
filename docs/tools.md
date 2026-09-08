@@ -5,9 +5,11 @@ Alpine repositories. `--with dev` adds `jq less rsync python3` from the same fee
 Python's version is whatever that branch supports; modern wheels/LSPs are not promised.
 
 Use ash with the small profile fragment. Full Unix zsh, mise, Ansible, Node-based
-agents, Herdr and SpecStory are not part of local support. The locked chezmoi i386
-binary exists, but `--manager chezmoi` remains experimental on the iSH emulator.
-No source builds or Alpine branch migration are attempted.
+agents and SpecStory are not part of local support. Herdr has a device-specific
+experimental i386 build, but its general installer remains closed pending the
+remaining acceptance checks. The locked chezmoi i386 binary exists, but
+`--manager chezmoi` remains experimental on the iSH emulator. Target setup does
+not build sources or migrate Alpine branches.
 
 `ovault [SUBDIR]` opens the iOS Files picker as needed and enters the vault.
 `OBSIDIAN_MNT` defaults to `/mnt/dq/Obsidian`; override it in local.sh.
@@ -25,6 +27,8 @@ The SSH seed preserves existing configuration; the tmux seed uses Ctrl+b then
 
 For agents, SSH to your Unix host, attach Herdr there, and launch
 `specstory run codex` (or another installed agent) in the remote project directory.
-The session and history live on that host. See [iOS terminals](ios-terminals.md).
+The session and history live on that host. The separate [Herdr on iSH](herdr-ish.md)
+page records the local compatibility artifact and release process. See
+[iOS terminals](ios-terminals.md) for the supported remote workflow.
 
 [Shell and Starship](shell.md) covers the builtin ash prompt and `--with starship`.

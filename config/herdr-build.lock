@@ -1,0 +1,11 @@
+# Maintainer-only inputs for the iSH Herdr builder.
+herdr_version=v0.9.0
+herdr_commit=b99002ac99b09e00b4ca692436cb15a6b0d676f1
+rust_version=1.96.1
+rust_src_url=https://static.rust-lang.org/dist/2026-06-30/rust-src-1.96.1.tar.xz
+rust_src_sha256=b343b6553bc772225f6a2b5be5055017f29794dcf4e08020366b27a0a40fc1c2
+rust_src_bytes=3868228
+zig_version=0.15.2
+zig_url=https://ziglang.org/download/0.15.2/zig-x86_64-linux-0.15.2.tar.xz
+zig_sha256=02aa270f183da276e5b5920b1dac44a63f1a49e55050ebde3aecc9eb82f93239
+zig_bytes=53733924

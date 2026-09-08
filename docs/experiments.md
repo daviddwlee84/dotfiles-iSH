@@ -6,8 +6,10 @@ are separate verification levels. SSH setup provides the test channel.
 
 2026-09-08 update: the custom Rust process/sleep standard library passes **18/18
 cases on the original iPad App**. The rebuilt Herdr now passes CLI server, pane,
-shell I/O, detach and same-pane reattach checks. CLI host-resize propagation and
-the original-iPad Herdr workflow remain unaccepted.
+shell I/O, detach and same-pane reattach checks. Its complete binary is installed
+at `~/.local/bin/herdr` on the original iPad with matching size/SHA-256 and a
+successful version probe. CLI host-resize propagation and a recorded full iPad
+Herdr workflow remain unaccepted.
 
 ## Environments and order
 
@@ -44,6 +46,19 @@ It creates a 32-bit static artifact, prints its hash, and does not install it.
 Use a Zig download verified against its official checksum. `--source CHECKOUT`
 can reuse a clean checkout of the exact pinned commit.
 
+The maintainer-only Herdr recipe pins upstream v0.9.0 plus its Rust, rust-src,
+Zig and reviewed compatibility patches. It runs on x86_64 Linux and emits the
+binary, manifest, checksums and proposed `assets.lock` row without installing:
+
+```sh
+sh scripts/build-herdr-ish.sh --print-plan
+sh scripts/build-herdr-ish.sh --version v0.9.0 --output /tmp/herdr-ish
+```
+
+The matching Actions workflow detects upstream releases weekly and builds only
+by manual dispatch. Publishing requires an explicit original-device acceptance
+confirmation. See [Herdr on iSH](herdr-ish.md).
+
 After trusted public-key SSH setup, run from the Mac:
 
 ```sh
@@ -70,7 +85,8 @@ Official iSH and patched iSH need separate result rows. This round allows patche
 | hako-code v0.2.3 | C/libc/pthread and curl; user confirms opening the transferred binary on iPad | Startup reported; authenticated tools pending |
 | Pi 0.73.1 | Node; transitive version floor and ia32 downloader need checking | Pending |
 | Gemini 0.58.0 | Node with child-process fallback; transitive version floor applies | Pending |
-| Herdr v0.8.2 | Custom std passes 18/18 device cases; rebuilt CLI session supports pane I/O and reattach | Original-iPad session and resize acceptance pending |
+| Herdr v0.8.2 | Custom std passes 18/18 device cases; rebuilt CLI session supports pane I/O and reattach | Installed with exact hash/version verified; detailed iPad session and resize acceptance pending |
+| Herdr v0.9.0 | Exact upstream commit and complete compatibility patch stack are locked; native build and CLI pane I/O/reattach pass | CLI resize fails; original-iPad scratch transfer/acceptance pending |
 
 2026-09-08 host result: hako v0.2.3 builds with both Alpine GCC 10.3 and Zig
 0.15.2, and both static binaries pass `--version` inside the iSH command-line
@@ -115,9 +131,13 @@ actual-device acceptance remain pending; no Herdr installer is enabled.
 Finder file sharing was accessed successfully with
 `mount -t real "$(cat /proc/ish/documents)" /mnt/finder`. The user reports that
 the transferred hako binary opens normally. Authentication, a model turn and
-read/edit/shell tools have not yet been reported as passing. The transferred
-Herdr binary fails with `herdr: failed to spawn herdr server: Invalid argument
-(os error 22)`, matching the CLI symptom above; no session starts.
+read/edit/shell tools have not yet been reported as passing. The initially
+transferred stock-std Herdr binary failed with `herdr: failed to spawn herdr
+server: Invalid argument (os error 22)`, matching the CLI symptom above. The
+later compatibility build was transferred in full, promoted atomically to
+`~/.local/bin/herdr`, and verified as 21,556,492 bytes with SHA-256
+`3ede5a4aed39470a67a66453b305f086bf51275c03d7bd0c16c513beb3dd9809`.
+The user reports that it runs; a detailed pane/resize/agent transcript is pending.
 
 SSH setup installed OpenRC 0.43.3-r3 from the iSH Alpine 3.14 snapshot, then
 stopped at `SSH prerequisite missing: /sbin/rc-status`. The installer and its
@@ -293,8 +313,18 @@ CLI binary (`3ede5a4a…d9809`) starts its server and pane, completes the client
 handshake, passes shell input/output, detaches, and reattaches to the same pane
 and shell PID. Its host PTY resize did not propagate: the pane remained 43x105
 after the host changed from 44x132 to 55x172. The owned server still stopped
-cleanly. Original-iPad testing is pending because SSH timed out before scratch
-upload; nothing was installed. See `experiments/herdr/results.json`.
+cleanly. The full binary is now installed on the original iPad and passes its
+hash/version checks; detailed session and resize acceptance are still pending.
+See `experiments/herdr/results.json`.
+
+The same port has been updated to Herdr v0.9.0 commit
+`b99002ac99b09e00b4ca692436cb15a6b0d676f1`. The 24,286,088-byte ELF32 binary
+(`fe35d658…672af`) builds successfully and reports `herdr 0.9.0` in the CLI
+guest. Its named-session, pane I/O, detach, same-PID reattach and owned-server
+stop checks pass. Host resize remains stale at 43x105, matching the v0.8.2 CLI
+limitation. The original-iPad scratch transfer is pending because SSH timed out
+during banner exchange; v0.8.2 remains installed. See
+`experiments/herdr/v0.9.0-results.json`.
 
 The actual vendored `portable-pty` and matching custom std were also tested in a
 fresh Alpine 3.14.10 CLI guest. `experiments/portable-pty-probe.rs` receives the

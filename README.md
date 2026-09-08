@@ -26,6 +26,8 @@ host keys are generated locally and passwords remain manual. See
 Finder file sharing is also enabled by default at `/mnt/finder`, with mounting
 at iSH startup. Use `--finder off` to opt out; see
 [Finder files](docs/finder-files.md) / [Finder 檔案共享](docs/finder-files.zh-TW.md).
+The experimental i386 Herdr build and its release gate are documented in
+[Herdr on iSH](docs/herdr-ish.md) / [iSH 上的 Herdr](docs/herdr-ish.zh-TW.md).
 
 <!-- project-knowledge-harness:readme-roadmap -->
 <!-- Snippet for project's README.md, placed near other meta sections like
