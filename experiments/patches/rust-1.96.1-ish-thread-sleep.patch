@@ -1,0 +1,13 @@
+--- a/library/std/src/sys/thread/unix.rs
++++ b/library/std/src/sys/thread/unix.rs
+@@ -527,7 +527,9 @@
+         any(
+             target_os = "freebsd",
+             target_os = "netbsd",
+-            target_os = "linux",
++            // iSH implements nanosleep but not clock_nanosleep. Use the
++            // existing relative-sleep fallback below in its private sysroot.
++            all(target_os = "linux", not(ish_compat)),
+             target_os = "android",
+             target_os = "solaris",
+             target_os = "illumos",

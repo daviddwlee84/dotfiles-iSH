@@ -1,6 +1,6 @@
 # Validate local agents and Herdr on iSH
 
-**Status**: in progress; SSH/Finder device checks passed, agent workflow acceptance pending
+**Status**: in progress; SSH/Finder and Rust std device checks passed; Herdr CLI session works except resize, original-iPad workflow pending
 **Effort**: L
 **Related**: `TODO.md`, `docs/ssh-server.md`, `docs/finder-files.md`, `docs/experiments.md`
 
@@ -10,7 +10,19 @@ SSH key/password login, PTY checks, verified SSH streams and legacy SCP work on
 the iPad. Finder installation and one complete app restart without a manual
 mount passed. SFTP fails its required PR_SET_DUMPABLE startup guard. hako's
 version runs; provider authentication and full read/edit/shell turns are still
-unconfirmed. Herdr's missing SEQPACKET/process path is reproduced on the device.
+unconfirmed. Herdr's original SEQPACKET/process failure was reproduced on the device.
+The experimental Rust std process and sleep patches now pass 18/18 cases on
+that same original App and in the CLI; missing clock_nanosleep is covered by
+the scoped nanosleep fallback. A parallel kernel SEQPACKET prototype passes
+stock-std process cases in the CLI. The Zig i386 C ABI wrapper plus an explicit
+iSH libc/page allocator now passes all 127 Ghostty API assertions in Linux and
+the iSH CLI. Herdr's iSH local-socket fallbacks then enable server startup, pane
+I/O, detach and same-pane reattach. CLI host-resize propagation remains stale,
+and the original-iPad Herdr workflow is pending because SSH timed out before
+scratch upload. The installer remains disabled.
+The device still uses manager=sh and has no chezmoi binary. The locked v2.72.1
+candidate prints its source-layout result but does not finish on the device;
+CLI comparisons also fail. No binary was installed or manager changed.
 The sections below retain the chronological investigation, including earlier
 pending states that were resolved by later checks.
 
@@ -426,3 +438,175 @@ proper SEQPACKET semantics in iSH is the alternative, but requires a new iSH
 build and broader kernel work. Current iSH master still has no SEQPACKET case in
 its socket type translator. The existing host-argument conversion patch remains
 independent and insufficient.
+
+## Compatibility experiments after checkpoint commits
+
+User requested a checkpoint commit followed by parallel Rust std and kernel
+experiments. iSH checkpoint: `2506416`; mirrored OpenWrt checkpoint: `3c392df`.
+Both passed staged secret scans and commit hooks. Nothing was pushed. The format
+hook excludes unified patch files because their empty context lines require a
+space prefix; all four checkpoint patches reverse-applied to tested sources.
+
+Rust 1.96.1 sources came from the official 2026-06-30 rust-src component:
+`https://static.rust-lang.org/dist/2026-06-30/rust-src-1.96.1.tar.xz`.
+SHA-256: `b343b6553bc772225f6a2b5be5055017f29794dcf4e08020366b27a0a40fc1c2`.
+The distribution manifest was verified against its published SHA-256
+`87eb76c53073e72b766083bed5530820694253b832a762d8385bda5759f03975`.
+A private copy of the Linux toolchain was used; host/global rustup was untouched.
+The std Cargo.lock SHA-256 is
+`c7fbe8811bd7b2a3737deb1bc5d1ec2ee6d631bc00221d3d8a58d05814b3e965`.
+All 40 registry dependencies were verified against that lock; only public cache
+state was written. Downloads from a mirror were accepted only after matching
+those checksums. Builds then ran offline.
+
+The first process-only custom std artifact passed all 14 per-case device probes
+on iSH 1.3.2 (494), Alpine 3.14.3, with SSH exit 0. Stock std's normal-spawn
+control passed and pre-exec-success failed with EINVAL. The corresponding CLI
+also printed all 14 passes, but the aggregate shell wrapper ended with host
+SIGTERM; the device's clean exit is the stronger result. Process probe SHA-256:
+`42ee007ccb0f4e9f96b9b7c56e58241cf2b8284b848ca1ae9d5fed206cd42698`.
+These are historical process-only artifacts; later probes add sleep coverage.
+
+The kernel branch's unchanged-stock-std Herdr progressed past spawn, then hit:
+
+```text
+assertion `left == right` failed
+  left: 38
+ right: 4
+```
+
+The assertion is in `library/std/src/sys/thread/unix.rs:581`.
+Rust 1.96.1 uses clock_nanosleep; iSH calls.c has only sys_nanosleep at slot162.
+This is a separate capability gap from SEQPACKET. The next std patch selects the
+existing relative nanosleep fallback only for the private iSH cfg. iSH's existing
+nanosleep implementation does not copy remaining time on EINTR, so interruption
+behavior must be measured; no claim of full syscall conformance is implied.
+
+
+Kernel prototype handoff: `experiments/patches/ish-seqpacket.patch`, after the
+existing host-args patch, applies cleanly to the pinned base and matches all nine
+compiled source files. `experiments/seqpacket/results.json` records source,
+artifact hashes, individual cases, review fixes and remaining limits. Native
+Linux 46/46; patched CLI 45/46 (socket SCM_RIGHTS intentionally unsupported).
+Missing Unix socket-reference cycle collection and borrowed-fd syscall lifetime
+handling prevent a complete-support or production-ready claim. No App was built
+or installed. The independent review also prompted ordinary readv/ESPIPE,
+listener ioctl, backlog wakeup and credential fixes before the final matrix.
+
+The std sleep patch plus process patch passes 18/18 expanded CLI cases with host
+exit 0, including SIGUSR1-interrupted sleep and concurrent pre_exec. A stock-std
+control reproduces the ENOSYS 38/EINTR 4 panic. The first 18-case device attempt
+could not get an SSH banner; the previous 14-case actual-device result remains
+valid and separate. Herdr is rebuilding with both std patches.
+
+
+A resumed Herdr Cargo target reused the process-only std after rust-src changed:
+the resulting daemon/API started, but the client and stop command still panicked
+at old thread/unix.rs line 581. That artifact is rejected and kept only as a
+private diagnostic. Cold builds must use a host-created fresh output directory;
+Docker's implicit creation of a missing `/var`-aliased source directory failed
+with build-script permission denied and did not create the expected host path.
+Precreating the directory and resolving the bind source fixed that build setup.
+A trial Herdr opt-level 1 compilation then ended with rustc SIGKILL; the next
+attempt returns to the previously successful default release profile with -j1.
+No host Docker memory settings or unrelated containers were changed.
+
+The fresh Herdr target's std artifact was independently tested before the long
+main compile: direct rustc injection of matching std/core/alloc/builtins/unwind
+rlibs passed sleep-relative and sleep-interrupted, both exit 0. The std SHA-256 is
+`ad0a73a7722ec41ab132764a4a689a05e6ac7d95e6e5b2eefd8ff5adea485729`, stable before
+and after probe compilation. This rules out the earlier stale-sleep artifact
+for this target; the Herdr binary still needs its own runtime test.
+
+## Original iPad expanded std acceptance and Herdr follow-up (2026-09-08)
+
+After the earlier SSH banner timeout, the native macOS compiler variant was
+transferred with its SHA-256 checked and passed all 18 per-case tests on the
+original iSH 1.3.2 (494), Alpine 3.14.3 App. Each case had a 30-second deadline;
+SSH exited 0. The probe SHA-256 is
+`5b842353f621260517950a6c2c595ec0a583586e65bcfbda9854f8dcd1b7f062`
+(1,480,092 bytes). This adds sleep-zero, relative/interrupted sleep and concurrent
+pre_exec to the earlier 14-case revision. Stock controls still pass normal spawn,
+fail pre_exec with EINVAL, and terminate relative sleep with `Bad system call`.
+No device kernel or system libraries were replaced. The same native-host artifact
+passed all 18 in the CLI; `experiments/rust-std/results.json` records both levels.
+
+The fresh native Herdr binary then built and passed its version probe, but its
+client did not become ready at first-pane initialization. A bounded C/Zig
+reduction reproduced incorrect i386 by-value aggregate arguments both in Linux
+container execution and the iSH CLI, while C-by-value and Zig-by-pointer controls
+passed. This is separate from struct memory layout and the now-working std path.
+See `experiments/zig-i386-abi/results.json`.
+
+The historical 1,224,644-byte Ghostty archive with SHA-256
+`2420a175e61fb0f02c1f51ece791b5391a15fb0d5b9712af56ca0b98c92e9196`
+is therefore known ABI-broken and retained only as build provenance, not an
+installation candidate. A separate C wrapper preserves public prototypes and
+passes 127 API assertions across six suites in Linux Docker i386 binfmt execution.
+In iSH, five mouse assertions pass; the other five suites terminate with SIGSEGV
+before their first constructor-result assertion. Constructor diagnosis remains
+open. The wrapper result is not full Herdr or iPad acceptance; see
+`experiments/zig-i386-abi/ghostty-api-results.json`.
+
+The actual vendored portable-pty rlib and matching native-target std were linked
+directly into `experiments/portable-pty-probe.rs`, preserving all child setup.
+In a fresh Alpine 3.14.10 CLI guest, the default mode receives
+`PTY_READY\r\n40 120\r\nPTY_DONE\r\n`, then blocks waiting for EOF until its
+30-second deadline. With `--wait-after-output`, the same output is followed by
+successful child wait/reaping and a pass in 24 ms. Herdr's Unix actor sets
+O_NONBLOCK, so this blocking EOF observation does not explain first-pane startup.
+Final-output draining and pane cleanup still need acceptance. No Herdr installer
+has been enabled.
+
+## iSH allocator and local-socket acceptance (2026-09-08)
+
+The public-prototype C ABI bridge passed 127 assertions in Linux but the five
+terminal-creating suites still failed in the iSH CLI. Selecting Ghostty's normal
+libc default allocator changed those failures from SIGSEGV to 45-second timeouts:
+terminal page backing still used direct mappings. The follow-up opt-in build is
+restricted to x86 Linux musl, links libc, uses page-aligned libc allocations for
+the terminal memory pool and `Page` backing, and explicitly clears those pages.
+It passed all 127 assertions in both Linux Docker binfmt and the iSH CLI. Archive
+SHA-256: `a8c7123d6e8e6df0cab93cd54f21d060953fa628b0474b74a510463167ea2222`,
+1,237,632 bytes. Results: `experiments/ghostty-allocator/results.json`.
+
+The first rebuilt Herdr then started its API server and pane and returned the
+expected shell output, but thin-client setup exposed iSH socket compatibility
+gaps. The final iSH branch uses Rust UnixListener/UnixStream, omits a redundant
+`set_nonblocking(false)` whose `interprocess` Linux implementation uses FIONBIO,
+and treats InvalidInput/Unsupported receive-timeout options as best-effort for
+client protocol and API compatibility checks. Non-iSH builds retain the original
+paths.
+
+Final binary SHA-256:
+`3ede5a4aed39470a67a66453b305f086bf51275c03d7bd0c16c513beb3dd9809`,
+21,556,492 bytes. A fresh CLI guest passed server start, client handshake, shell
+input/output, Ctrl+B then q detach, server/pane survival, reattach with the same
+shell PID, second detach and owned-server stop. Host PTY resize did not propagate:
+the pane remained 43x105 after host resize from 44x132 to 55x172. That is a CLI
+bridge result, not evidence about SSH PTY or iPad UI resize. Original-iPad scratch
+upload was attempted only after these gates, but SSH timed out before transfer;
+no binary was installed or existing Finder file replaced. Results:
+`experiments/herdr/results.json`.
+
+
+## Chezmoi device recheck (2026-09-08)
+
+The missing command is consistent with manager=sh, not only a stale PATH.
+The locked v2.72.1 archive and binary passed transferred SHA-256 checks in an
+isolated scratch HOME. `--version` exited 0; the template printed `supported`
+but did not finish, including after the 15-second SIGKILL deadline. The SSH
+client's outer 120-second deadline expired. SSH later refused connections;
+causality and the exact App failure mechanism remain unconfirmed. The user was
+asked to reopen iSH, then confirmed the App had crashed and was reopened. SSH
+recovered with manager=sh, sshd=on, finder=on and no chezmoi binary. No candidate
+was installed and no manager state changed.
+
+Eight CLI comparisons using the same binary also failed: seven emulator SIGSEGV
+exits and one Go-runtime-error timeout. GOMAXPROCS=1 and asyncpreemptoff=1 did not
+produce a passing process. They remain transient diagnostic settings. Results
+are in `experiments/chezmoi/results.json`; retain sh until a compatible binary
+passes checks and a full workflow can be validated. Plain version/template output
+is not acceptance. The separate kernel crash diagnostic branch was stopped after
+automatic review rejected it for possible cybersecurity risk; no result from
+that incomplete branch is counted as a compatibility pass.

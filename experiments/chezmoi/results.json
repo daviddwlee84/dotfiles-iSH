@@ -1,0 +1,106 @@
+{
+  "date": "2026-09-08",
+  "status": "not accepted; binary not installed and manager remains sh",
+  "release": {
+    "version": "v2.72.1",
+    "archive_url": "https://github.com/twpayne/chezmoi/releases/download/v2.72.1/chezmoi_2.72.1_linux_i386.tar.gz",
+    "archive_sha256": "09506e55f48e5ee2dac76390ebf436499dcb45dc80871d5daccfef5bd3d0c439",
+    "archive_bytes": 14874135,
+    "binary_sha256": "c35b8e1933f74e724e3f4ef9e830386e7a60dbf65c49defe5f45ec45f45d8ca0",
+    "binary_bytes": 38699168
+  },
+  "original_device": {
+    "ish": "1.3.2 (494)",
+    "alpine": "3.14.3",
+    "manager_before": "sh",
+    "installed_binary_found": false,
+    "checksum_verified": true,
+    "version_exit": 0,
+    "template_stdout": "supported",
+    "template_exit": "not observed",
+    "per_command_kill_deadline_seconds": 15,
+    "ssh_outer_deadline_seconds": 120,
+    "ssh_outer_timeout": true,
+    "subsequent_ssh": "one builtin response, then connection refused; device/app failure mechanism not established",
+    "system_or_manager_changes": false,
+    "user_observation": "User reported iSH App crashed after the probe, then reopened it.",
+    "after_reopen": {
+      "ssh_exit": 0,
+      "manager": "sh",
+      "sshd": "on",
+      "finder": "on",
+      "chezmoi": "absent",
+      "finder_directory": "present"
+    }
+  },
+  "cli": {
+    "ish_base_commit": "d189985e5cc6d0e70629efeb31505b51a9ce78af",
+    "ish_binary_sha256": "03c3ccd832df6ed95222d38a14137096146ec6aa44d2ace94b194a46d5c2f086",
+    "alpine": "3.14.10 x86",
+    "per_case_host_deadline_seconds": 20,
+    "results": [
+      {
+        "case": "default-version",
+        "exit": -11,
+        "timeout": false,
+        "seconds": 0.407,
+        "output": "chezmoi version v2.72.1, commit f901167e4685db90da56d6a2a19df642cb3e0247, built at 2026-08-30T13:33:37Z, built by goreleaser\n"
+      },
+      {
+        "case": "default-template",
+        "exit": -15,
+        "timeout": true,
+        "seconds": 20.014,
+        "output": "fatal error: markWorkerStop: unknown mark worker mode\nfatal: morestack on gsignal\nfatal error: unexpected signal during runtime execution\n"
+      },
+      {
+        "case": "single-proc-version",
+        "exit": -11,
+        "timeout": false,
+        "seconds": 0.438,
+        "output": "chezmoi version v2.72.1, commit f901167e4685db90da56d6a2a19df642cb3e0247, built at 2026-08-30T13:33:37Z, built by goreleaser\n"
+      },
+      {
+        "case": "single-proc-template",
+        "exit": -11,
+        "timeout": false,
+        "seconds": 0.599,
+        "output": "supported"
+      },
+      {
+        "case": "no-async-preemption-version",
+        "exit": -11,
+        "timeout": false,
+        "seconds": 0.528,
+        "output": "chezmoi version v2.72.1, commit f901167e4685db90da56d6a2a19df642cb3e0247, built at 2026-08-30T13:33:37Z, built by goreleaser\n"
+      },
+      {
+        "case": "no-async-preemption-template",
+        "exit": -11,
+        "timeout": false,
+        "seconds": 0.703,
+        "output": "supported"
+      },
+      {
+        "case": "both-version",
+        "exit": -11,
+        "timeout": false,
+        "seconds": 0.418,
+        "output": "chezmoi version v2.72.1, commit f901167e4685db90da56d6a2a19df642cb3e0247, built at 2026-08-30T13:33:37Z, built by goreleaser\n"
+      },
+      {
+        "case": "both-template",
+        "exit": -11,
+        "timeout": false,
+        "seconds": 0.527,
+        "output": "supported"
+      }
+    ],
+    "debugger": "non-interactive LLDB launch refused by macOS; permissions unchanged"
+  },
+  "limits": [
+    "Printed output is insufficient: a successful process exit is required.",
+    "GOMAXPROCS=1 and GODEBUG=asyncpreemptoff=1 did not produce a passing CLI process. Neither was persisted on the device.",
+    "No checksum/runtime bypass or system upgrade; no conclusion that all Go versions fail."
+  ]
+}

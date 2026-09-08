@@ -1,0 +1,136 @@
+diff --git a/vendor/libghostty-vt/src/build/Config.zig b/vendor/libghostty-vt/src/build/Config.zig
+--- a/vendor/libghostty-vt/src/build/Config.zig
++++ b/vendor/libghostty-vt/src/build/Config.zig
+@@ -32,6 +32,10 @@
+ wayland: bool = false,
+ sentry: bool = true,
+ simd: bool = true,
++/// Explicit libc linkage for scalar libghostty-vt embedders.
++vt_libc: bool = false,
++/// Use libc-backed terminal page allocations for the iSH compatibility build.
++ish_compat: bool = false,
+ i18n: bool = true,
+ wasm_shared: bool = true,
+ 
+@@ -204,6 +208,24 @@
+ 
+         break :simd true;
+     };
++
++    config.vt_libc = b.option(
++        bool,
++        "vt-libc",
++        "Link libghostty-vt with libc, including scalar builds; uses the documented libc default allocator.",
++    ) orelse false;
++
++    config.ish_compat = b.option(
++        bool,
++        "ish-compat",
++        "Use iSH-compatible libc allocation for terminal page backing memory.",
++    ) orelse false;
++    if (config.ish_compat and !(
++        target.result.cpu.arch == .x86 and
++        target.result.os.tag == .linux and
++        target.result.abi.isMusl()
++    )) return error.UnsupportedIshCompatibilityTarget;
++    if (config.ish_compat) config.vt_libc = true;
+ 
+     config.wayland = b.option(
+         bool,
+@@ -574,6 +596,7 @@ pub fn terminalOptions(self: *const Config, artifact: TerminalBuildOptions.Artif
+     return .{
+         .artifact = artifact,
+         .simd = self.simd,
++        .ish_compat = self.ish_compat,
+         .oniguruma = true,
+         .c_abi = false,
+         .version = switch (artifact) {
+diff --git a/vendor/libghostty-vt/src/build/GhosttyZig.zig b/vendor/libghostty-vt/src/build/GhosttyZig.zig
+--- a/vendor/libghostty-vt/src/build/GhosttyZig.zig
++++ b/vendor/libghostty-vt/src/build/GhosttyZig.zig
+@@ -123,7 +123,7 @@
+         // no-libcxx mode (HWY_NO_LIBCXX / SIMDUTF_NO_LIBCXX) so we
+         // don't need libcpp. System-provided simdutf headers still
+         // use C++ stdlib headers, so we need libcpp in that case.
+-        .link_libc = if (cfg.simd) true else null,
++        .link_libc = if (cfg.simd or cfg.vt_libc) true else null,
+         .link_libcpp = if (cfg.simd and
+             b.systemIntegrationOption("simdutf", .{}) and
+             cfg.target.result.abi != .msvc) true else null,
+diff --git a/vendor/libghostty-vt/src/terminal/PageList.zig b/vendor/libghostty-vt/src/terminal/PageList.zig
+--- a/vendor/libghostty-vt/src/terminal/PageList.zig
++++ b/vendor/libghostty-vt/src/terminal/PageList.zig
+@@ -581,6 +581,11 @@ inline fn pageAllocator() Allocator {
+     // In tests we use our testing allocator so we can detect leaks.
+     if (builtin.is_test) return std.testing.allocator;
+ 
++    // iSH's mmap emulation cannot reliably support the page allocator's
++    // mapping pattern. The dedicated compatibility build uses libc while
++    // retaining the same page alignment and explicit zero initialization.
++    if (build_options.ish_compat) return std.heap.c_allocator;
++
+     // On non-macOS we use our standard Zig page allocator.
+     if (!builtin.target.os.tag.isDarwin()) return std.heap.page_allocator;
+ 
+@@ -743,7 +748,9 @@ fn initPages(
+         // (WASM), the WasmAllocator reuses freed slots without zeroing since
+         // only fresh memory.grow pages are guaranteed zero by the WASM spec.
+         // On native, the OS page allocator (mmap) returns zeroed pages.
+-        if (comptime std.debug.runtime_safety or builtin.os.tag == .freestanding)
++        if (comptime std.debug.runtime_safety or
++            builtin.os.tag == .freestanding or
++            build_options.ish_compat)
+             @memset(page_buf, 0);
+ 
+         // Initialize the first set of pages to contain our viewport so that
+diff --git a/vendor/libghostty-vt/src/terminal/build_options.zig b/vendor/libghostty-vt/src/terminal/build_options.zig
+--- a/vendor/libghostty-vt/src/terminal/build_options.zig
++++ b/vendor/libghostty-vt/src/terminal/build_options.zig
+@@ -27,6 +27,9 @@ pub const Options = struct {
+     /// but results in significant performance improvements.
+     simd: bool,
+ 
++    /// Use libc-backed terminal page allocations for iSH compatibility.
++    ish_compat: bool,
++
+     /// True if we should enable the "slow" runtime safety checks. These
+     /// are runtime safety checks that are slower than typical and should
+     /// generally be disabled in production builds.
+@@ -53,6 +56,7 @@ pub const Options = struct {
+         opts.addOption(bool, "c_abi", self.c_abi);
+         opts.addOption(bool, "oniguruma", self.oniguruma);
+         opts.addOption(bool, "simd", self.simd);
++        opts.addOption(bool, "ish_compat", self.ish_compat);
+         opts.addOption(bool, "slow_runtime_safety", self.slow_runtime_safety);
+ 
+         // Kitty graphics is almost always true. This used to be conditional on
+diff --git a/vendor/libghostty-vt/src/terminal/page.zig b/vendor/libghostty-vt/src/terminal/page.zig
+--- a/vendor/libghostty-vt/src/terminal/page.zig
++++ b/vendor/libghostty-vt/src/terminal/page.zig
+@@ -33,7 +33,25 @@ const log = std.log.scoped(.page);
+ /// performance-critical and the OS guarantees zeroed pages.
+ const PageAlloc = switch (builtin.os.tag) {
+     .windows => AllocWindows,
+-    else => AllocPosix,
++    else => if (build_options.ish_compat) AllocLibC else AllocPosix,
++};
++
++/// iSH compatibility allocator. libc supplies the required page alignment;
++/// unlike mmap-backed pages, the returned storage must be cleared explicitly.
++const AllocLibC = struct {
++    pub fn alloc(n: usize) ![]align(std.heap.page_size_min) u8 {
++        const mem = try std.heap.c_allocator.alignedAlloc(
++            u8,
++            .fromByteUnits(std.heap.page_size_min),
++            n,
++        );
++        @memset(mem, 0);
++        return mem;
++    }
++
++    pub fn free(mem: []align(std.heap.page_size_min) u8) void {
++        std.heap.c_allocator.free(mem);
++    }
+ };
+ 
+ /// Allocate page-aligned, zeroed backing memory using mmap with

@@ -1,0 +1,51 @@
+{
+  "date": "2026-09-08",
+  "version": "0.8.2",
+  "source_commit": "9eb521456ac0d19d3ab3d9d7cea3cca10baa8a4c",
+  "target": "i586-unknown-linux-musl",
+  "binary": {
+    "sha256": "3ede5a4aed39470a67a66453b305f086bf51275c03d7bd0c16c513beb3dd9809",
+    "bytes": 21556492,
+    "format": "ELF32 i386 static",
+    "version_probe": "herdr 0.8.2"
+  },
+  "patches": {
+    "ghostty-i386-c-abi.patch": "3c3f3122b1f172e535a7aab92cd5f93c79c7bc27371c424f4285eb4d93b4b41a",
+    "ghostty-vt-libc-option.patch": "11293148bbdbb7f857b1a27c9bd860d3ff1a326bc90175f5245bcc39b1713629",
+    "herdr-i586-prebuilt-ghostty.patch": "5daa17f93f248e4f7549aa159f80daf97775996142a32fcb56a1526edd96e3da",
+    "herdr-i586-local-stream.patch": "2eefa2e969395e0eb7d5ac7a759c64cbbc483872161c70254f3eabc9af9529a9",
+    "rust-1.96.1-ish-process-pipe.patch": "a69429e279f0d874075c83e3238703a6c33636a02587c8b3faae019ea5025e57",
+    "rust-1.96.1-ish-thread-sleep.patch": "b670c0cf1f374f9407384dc5dd4e98639a6e039fb4c7b8d3a9687b4703089b07"
+  },
+  "ghostty_archive": {
+    "sha256": "a8c7123d6e8e6df0cab93cd54f21d060953fa628b0474b74a510463167ea2222",
+    "bytes": 1237632,
+    "selection_guard": "target, size and SHA-256 checked before link"
+  },
+  "cli_headless": {
+    "server_started": true,
+    "pane_spawned": true,
+    "shell_output_marker": "HERDR_PTY_WORKED",
+    "client_handshake": "passed after iSH local-socket and timeout fallbacks",
+    "owned_server_stop": "passed",
+    "outer_emulator_exit": "signal observed after guest cleanup; not counted as a Herdr session pass"
+  },
+  "cli_real_pty": {
+    "initial_attach": "passed",
+    "shell_input_output": "passed",
+    "first_detach": "passed",
+    "reattach": "passed with the same shell PID",
+    "second_detach_and_owned_server_stop": "passed",
+    "host_resize": "failed; pane remained 43x105 after host PTY changed from 44x132 to 55x172",
+    "overall": "partial because CLI host-resize propagation failed"
+  },
+  "original_ipad": {
+    "status": "pending; SSH connection timed out before scratch upload",
+    "installation_performed": false
+  },
+  "limits": [
+    "The binary is an experiment and is not enabled in bootstrap or optional installation.",
+    "The CLI resize failure does not establish behavior of an SSH PTY or the original iPad App.",
+    "Kitty shared-memory/file mapping paths were not exercised."
+  ]
+}

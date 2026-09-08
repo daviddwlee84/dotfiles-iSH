@@ -1,0 +1,43 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -75,3 +75,7 @@
+     "Win32_UI_Shell",
+     "Win32_UI_WindowsAndMessaging",
+ ] }
++
++[build-dependencies]
++# Reuse the already locked runtime dependency for the opt-in iSH archive check.
++sha2 = "0.10"
+--- a/build.rs
++++ b/build.rs
+@@ -56,6 +56,30 @@
+     let target = env::var("TARGET").expect("TARGET");
+     let simd = env_bool("LIBGHOSTTY_VT_SIMD")
+         .unwrap_or(target != "i586-unknown-linux-musl");
++    // Maintainer-only, explicit reuse of the previously cross-built scalar
++    // i586 archive. Default builds still compile the vendored Zig source.
++    println!("cargo:rerun-if-env-changed=HERDR_ISH_GHOSTTY_ARCHIVE");
++    if let Some(path) = env::var_os("HERDR_ISH_GHOSTTY_ARCHIVE") {
++        use sha2::{Digest, Sha256};
++        assert_eq!(target, "i586-unknown-linux-musl", "iSH archive target mismatch");
++        let path = PathBuf::from(path);
++        println!("cargo:rerun-if-changed={}", path.display());
++        let size = fs::metadata(&path).expect("read iSH archive metadata").len();
++        assert_eq!(size, 1_237_632, "iSH archive size mismatch");
++        let bytes = fs::read(&path).expect("read iSH archive");
++        assert_eq!(
++            format!("{:x}", Sha256::digest(&bytes)),
++            "a8c7123d6e8e6df0cab93cd54f21d060953fa628b0474b74a510463167ea2222",
++            "iSH archive checksum mismatch",
++        );
++        let out = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR"));
++        fs::write(out.join("libghostty-vt.a"), bytes).expect("stage verified iSH archive");
++        println!("cargo:warning=using explicitly selected, checksum-verified iSH libghostty archive");
++        println!("cargo:rustc-link-search=native={}", out.display());
++        println!("cargo:rustc-link-lib=static=ghostty-vt");
++        return;
++    }
++
+     let zig_target = zig_target(&target);
+     let version_string = fs::read_to_string(vendored_dir.join("VERSION"))
+         .expect("failed to read vendored libghostty-vt VERSION")

@@ -1,0 +1,150 @@
+diff --git a/src/api/client.rs b/src/api/client.rs
+index 326ebc7..8f38b7b 100644
+--- a/src/api/client.rs
++++ b/src/api/client.rs
+@@ -116,6 +116,15 @@ fn set_timeout_best_effort(
+         Ok(()) => Ok(()),
+         #[cfg(windows)]
+         Err(err) if err.kind() == io::ErrorKind::Unsupported => Ok(()),
++        #[cfg(all(unix, ish_compat))]
++        Err(err)
++            if matches!(
++                err.kind(),
++                io::ErrorKind::InvalidInput | io::ErrorKind::Unsupported
++            ) =>
++        {
++            Ok(())
++        }
+         Err(err) => Err(err),
+     }
+ }
+diff --git a/src/client/mod.rs b/src/client/mod.rs
+index c33157f..f76a98a 100644
+--- a/src/client/mod.rs
++++ b/src/client/mod.rs
+@@ -787,7 +787,7 @@ fn set_handshake_recv_timeout(
+     }
+ }
+ 
+-#[cfg(not(windows))]
++#[cfg(all(not(windows), not(all(unix, ish_compat))))]
+ fn set_handshake_recv_timeout(
+     stream: &LocalStream,
+     timeout: Option<Duration>,
+@@ -798,6 +798,27 @@ fn set_handshake_recv_timeout(
+         .map_err(ClientError::ConnectionFailed)
+ }
+ 
++#[cfg(all(unix, ish_compat))]
++fn set_handshake_recv_timeout(
++    stream: &LocalStream,
++    timeout: Option<Duration>,
++    context: &'static str,
++) -> Result<(), ClientError> {
++    match stream.set_recv_timeout(timeout) {
++        Ok(()) => Ok(()),
++        Err(err)
++            if matches!(
++                err.kind(),
++                io::ErrorKind::InvalidInput | io::ErrorKind::Unsupported
++            ) =>
++        {
++            debug!(err = %err, context, "iSH client socket receive timeout unavailable");
++            Ok(())
++        }
++        Err(err) => Err(ClientError::ConnectionFailed(err)),
++    }
++}
++
+ fn client_launch_mode(
+     direct_attach_requested: bool,
+     exact_cell_size: bool,
+@@ -831,6 +852,7 @@ fn do_handshake(
+     requested_encoding: RenderEncoding,
+     direct_attach_requested: bool,
+ ) -> Result<RenderEncoding, ClientError> {
++    #[cfg(not(all(unix, ish_compat)))]
+     stream
+         .set_nonblocking(false)
+         .map_err(ClientError::ConnectionFailed)?;
+diff --git a/src/ipc.rs b/src/ipc.rs
+index 36e69ea..a522a79 100644
+--- a/src/ipc.rs
++++ b/src/ipc.rs
+@@ -33,6 +33,17 @@ pub(crate) struct SocketFileIdentity {
+ }
+ 
+ pub(crate) fn connect_local_stream(path: &Path) -> io::Result<LocalStream> {
++    #[cfg(all(unix, ish_compat))]
++    {
++        use std::os::unix::net::UnixStream;
++
++        // interprocess creates its client fd with Linux socket type flags.
++        // iSH rejects that creation path, while Rust's UnixStream includes
++        // the portable CLOEXEC fallback already used by our JSON API client.
++        return UnixStream::connect(path).map(|stream| LocalStream::UdSocket(stream.into()));
++    }
++
++    #[cfg(all(unix, not(ish_compat)))]
+     #[cfg(unix)]
+     {
+         use interprocess::local_socket::{prelude::*, GenericFilePath};
+@@ -52,6 +63,16 @@ pub(crate) fn connect_local_stream(path: &Path) -> io::Result<LocalStream> {
+ }
+ 
+ pub(crate) fn bind_local_listener(path: &Path) -> io::Result<LocalListener> {
++    #[cfg(all(unix, ish_compat))]
++    {
++        use std::os::unix::net::UnixListener;
++
++        // The same compatibility rule as connect_local_stream: use Rust's
++        // portable socket creation and backlog handling on iSH.
++        return UnixListener::bind(path).map(|listener| LocalListener::UdSocket(listener.into()));
++    }
++
++    #[cfg(all(unix, not(ish_compat)))]
+     #[cfg(unix)]
+     {
+         use interprocess::local_socket::{prelude::*, GenericFilePath, ListenerOptions};
+diff --git a/src/server/client_transport.rs b/src/server/client_transport.rs
+index f1237c8..7d019d9 100644
+--- a/src/server/client_transport.rs
++++ b/src/server/client_transport.rs
+@@ -502,7 +502,7 @@ fn set_client_recv_timeout(
+     }
+ }
+ 
+-#[cfg(not(windows))]
++#[cfg(all(not(windows), not(all(unix, ish_compat))))]
+ fn set_client_recv_timeout(
+     stream: &LocalStream,
+     timeout: Option<Duration>,
+@@ -512,6 +512,28 @@ fn set_client_recv_timeout(
+     stream.set_recv_timeout(timeout)
+ }
+ 
++#[cfg(all(unix, ish_compat))]
++fn set_client_recv_timeout(
++    stream: &LocalStream,
++    timeout: Option<Duration>,
++    context: &'static str,
++    client_id: u64,
++) -> io::Result<()> {
++    match stream.set_recv_timeout(timeout) {
++        Ok(()) => Ok(()),
++        Err(err)
++            if matches!(
++                err.kind(),
++                io::ErrorKind::InvalidInput | io::ErrorKind::Unsupported
++            ) =>
++        {
++            debug!(client_id, err = %err, context, "iSH client socket receive timeout unavailable");
++            Ok(())
++        }
++        Err(err) => Err(err),
++    }
++}
++
+ /// Handles the client handshake on a blocking thread.
+ ///
+ /// Reads the `Hello` message, validates the version, sends `Welcome`,

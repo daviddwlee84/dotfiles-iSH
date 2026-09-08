@@ -5,9 +5,13 @@ session fails immediately with the title's error.
 **First seen:** 2026-09-08.
 **Affects:** Herdr v0.8.2 built with Rust 1.96.1 for i586 musl, tested in the
 macOS ARM64 iSH CLI at `d189985e5cc6d0e70629efeb31505b51a9ce78af`.
-**Status:** IPC compatibility blocks session acceptance. The user reproduced the
-server-spawn error on iPad; the maintainer then ran the minimal diagnostics on
-iSH 1.3.2 (494), Alpine 3.14.3, i686. The iPadOS build remains unrecorded.
+**Status:** the experimental iSH-specific Rust std process/sleep variant passes
+18/18 cases on the original iPad App. The rebuilt Herdr passes CLI server, pane,
+shell I/O, detach and same-pane reattach checks after separate Ghostty allocator,
+C ABI and local-socket fixes. CLI host-resize and original-iPad Herdr acceptance
+remain pending. The original error and std probes were tested on iSH 1.3.2
+(494), Alpine 3.14.3, i686.
+The iPadOS build remains unrecorded.
 
 ## Symptom and reduction
 
@@ -49,12 +53,12 @@ would not provide the missing semantics.
 This does **not** show that iSH cannot fork/exec. It identifies a dependency of
 this particular Rust standard-library execution path.
 
-## Current workaround and next investigation
+## Current workaround and compatibility result
 
-Use the direct SSH test channel while local Herdr remains unaccepted. A complete
-fix needs either proper iSH SEQPACKET support or a reviewed standard-library
-compatibility path, retaining message boundaries, EOF and descriptor behavior.
-Do not blindly substitute stream/datagram sockets or disable child setup.
+Use the direct SSH test channel until the final binary passes the original-iPad
+workflow. The working custom-std route uses Rust's existing pipe error channel
+under `ish_compat`; it does not substitute a stream socket for SEQPACKET and does
+not disable child setup.
 
 A separate `sys_socketpair` bug passed raw Linux flags to the host despite
 calculating translated arguments. `experiments/patches/ish-socketpair-host-args.patch`
@@ -71,13 +75,54 @@ not a validated iSH/Herdr fix. The revert was not merged as a general Rust fix.
 The original Linux pidfd transport change was
 [merged in August 2023](https://github.com/rust-lang/rust/pull/113939).
 
-An iSH-specific standard-library build using the existing Unix pipe error
-channel is a candidate for further work. It must retain the pre_exec callbacks,
-exec-error reporting and close-on-exec behavior. Unsupported explicit pidfd
-requests should fail clearly rather than silently lose their contract. Test
+An iSH-specific Rust 1.96.1 standard library now uses the existing Unix pipe
+error channel under the explicit `ish_compat` build cfg. The patch retains
+pre_exec callbacks, exec-error reporting and close-on-exec behavior. It rejects
+explicit pidfd requests with `Unsupported` before both spawn paths; this is an
+intentional stricter contract than upstream's advisory `create_pidfd` request.
+Without the cfg, executable branches retain upstream behavior.
+
+The earlier process-only build passed 14 cases on the original iPad App, including
 callback failure, missing executables, successful exec/EOF, descriptor handling,
-and a real PTY before claiming Herdr support. No such custom std build has been
-implemented or tested in this repository yet.
+wait/reaping and explicit pidfd rejection. A stock-std control still returned
+EINVAL for pre_exec. The parallel SEQPACKET kernel prototype also passed the 12
+stock-std process cases in the macOS CLI, then Herdr reached a separate Rust
+sleep failure because `clock_nanosleep` is missing.
+
+The additional `rust-1.96.1-ish-thread-sleep.patch` selects std's relative nanosleep
+fallback. The combined variant now passes 18/18 cases on the original iPad App
+and in the CLI, including interrupted sleep and concurrent spawning. Each device
+case had a 30-second deadline and SSH exited 0; the stock sleep control ended
+with `Bad system call`. Interrupted-sleep tests require signal delivery and no
+early return, allowing oversleep. See `experiments/rust-std/results.json`.
+
+`experiments/zig-i386-abi/results.json` reproduces Zig 0.15.2's i386 by-value
+aggregate mismatch independently of Herdr. The historical Ghostty archive remains
+known ABI-broken and is not an installation candidate. A C wrapper preserves the
+public prototypes. Enabling only Ghostty's libc default allocator changes the iSH
+terminal failure from SIGSEGV to timeout; the terminal pages still use direct
+mappings. The dedicated x86 Linux musl `ish-compat` allocator moves both general
+and page backing allocations to libc, retains page alignment, clears pages, and
+passes all 127 API assertions in Linux and the iSH CLI. See
+`experiments/ghostty-allocator/results.json`.
+
+The remaining EINVAL came from Herdr's local-socket setup rather than pane spawn.
+The iSH build uses Rust UnixListener/UnixStream instead of `interprocess`'s Linux
+fast path, skips a redundant FIONBIO call on an already-blocking connection, and
+treats unsupported/invalid receive-timeout socket options as best-effort. Other
+targets keep their original paths. The final CLI binary starts a pane, completes
+the protocol handshake, performs shell I/O, detaches and reattaches with the same
+pane and shell PID. CLI host-resize propagation remains stale; original-iPad
+acceptance was not run because SSH timed out before scratch upload. No installer
+was enabled. See `experiments/herdr/results.json`.
+
+The actual portable-pty probe receives correct output and terminal size before
+its blocking EOF read times out at 30 seconds. `--wait-after-output` instead
+waits/reaps after the completion marker and passes in 24 ms in the CLI, preserving
+library initialization. Herdr uses nonblocking PTY reads, so this separate EOF
+limitation did not explain its startup failure. Later full CLI session checks
+passed pane I/O and cleanup; final-output edge cases still need normal use and
+original-device acceptance. See `docs/experiments.md`.
 
 Simply downgrading the compiler is not a direct solution: the locked Herdr
 dependency graph includes time 0.3.47 (Rust 1.88 minimum), while Rust 1.88 already

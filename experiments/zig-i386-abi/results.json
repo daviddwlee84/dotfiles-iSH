@@ -1,0 +1,129 @@
+{
+  "date": "2026-09-08",
+  "purpose": "Isolate C/Zig i386 by-value aggregate interoperability from Herdr and the iSH emulator.",
+  "compiler": "Zig 0.15.2",
+  "zig_target": "x86-linux-musl",
+  "cpu": "pentium",
+  "zig_optimization": "ReleaseSmall",
+  "c_optimization": "O1",
+  "static_link": true,
+  "input_layout": {
+    "fields": [
+      "uint16_t cols",
+      "uint16_t rows",
+      "size_t max"
+    ],
+    "size": 8,
+    "alignment": 4,
+    "offsets": [
+      0,
+      2,
+      4
+    ]
+  },
+  "probe_safety": "Output pointer is first; both languages declare the same initialized trailing u32 argument. No wrong-prototype aliases, variadic calls, or uninitialized output contents are used.",
+  "source_sha256": {
+    "abi.h": "d0bee4e8c6c22c457029ff2967bcedcc69b8df8bed0bb7559c787c894b67636a",
+    "echo.zig": "a2735d0f1c2b3592ebdf2bec17d9ad6d86e632f994e23421155801aa097521e5",
+    "probe.c": "786bbde5d4a86904ef8c1cf122c19ca6002da4d1de3d1f8375fcbc5632196445",
+    "reference.c": "8c2058a21ade8dc095124148f72dfb4d2b4a4ec3786b96cb2e841d4c7e378737"
+  },
+  "binary_sha256": "8e6abf79183b313bed225ffa23b3f1c6d0a710889c7c40ce4e43f0bf03d05fd2",
+  "cases": [
+    {
+      "input": [
+        2,
+        2,
+        0
+      ],
+      "zig_by_value": [
+        2,
+        0,
+        1122867
+      ]
+    },
+    {
+      "input": [
+        120,
+        40,
+        10000000
+      ],
+      "zig_by_value": [
+        120,
+        38528,
+        1122867
+      ]
+    },
+    {
+      "input": [
+        17,
+        53,
+        24680
+      ],
+      "zig_by_value": [
+        17,
+        24680,
+        1122867
+      ]
+    }
+  ],
+  "results": {
+    "linux_docker_i386_execution": {
+      "image": "ubuntu:24.04",
+      "host_platform": "linux/arm64",
+      "execution_note": "Existing binfmt executes the i386 ELF; no registration or global Docker changes. This is not native i386 hardware.",
+      "C_by_value": {
+        "passed": 3,
+        "failed": 0
+      },
+      "Zig_by_pointer": {
+        "passed": 3,
+        "failed": 0
+      },
+      "Zig_by_value": {
+        "passed": 0,
+        "failed": 3
+      },
+      "exit": 1
+    },
+    "ish_cli": {
+      "base_commit": "d189985e5cc6d0e70629efeb31505b51a9ce78af",
+      "guest": "Alpine 3.14.10 x86",
+      "C_by_value": {
+        "passed": 3,
+        "failed": 0
+      },
+      "Zig_by_pointer": {
+        "passed": 3,
+        "failed": 0
+      },
+      "Zig_by_value": {
+        "passed": 0,
+        "failed": 3
+      },
+      "exit": 1
+    },
+    "outputs_identical": true
+  },
+  "assembly_observation": {
+    "Zig_by_value_EBP_offsets": {
+      "out": 8,
+      "cols": 12,
+      "rows": 16,
+      "max": 20
+    },
+    "C_by_value_EBP_offsets": {
+      "out": 8,
+      "cols": 12,
+      "rows": 14,
+      "max": 16
+    },
+    "interpretation": "Zig separates adjacent u16 fields into individual i386 argument words although C packs them into a single word; extern struct memory layout agrees but by-value calling convention does not."
+  },
+  "build_commands": [
+    "zig build-obj experiments/zig-i386-abi/echo.zig -target x86-linux-musl -mcpu pentium -O ReleaseSmall -femit-bin=OUT/echo.o -femit-asm=OUT/echo.s",
+    "zig cc -target x86-linux-musl -mcpu=pentium -O1 -std=c11 -Wall -Wextra -Werror -c experiments/zig-i386-abi/reference.c -o OUT/reference.o",
+    "zig cc -target x86-linux-musl -mcpu=pentium -static -O1 -std=c11 -Wall -Wextra -Werror experiments/zig-i386-abi/probe.c OUT/reference.o OUT/echo.o -o OUT/probe"
+  ],
+  "conclusion": "The by-value mismatch is independently present without Herdr and reproduces outside iSH. Pointer-based C/Zig interoperation passes these cases. A correctly typed C ABI wrapper is a possible repair to investigate; no Herdr/library repair is implemented by this probe."
+}

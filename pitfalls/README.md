@@ -88,8 +88,8 @@ Pitfalls owned by this folder. Keep alphabetical.
 
 | Slug | Symptom keywords | Status |
 |---|---|---|
-| [chezmoi-probe-waits-past-timeout](chezmoi-probe-waits-past-timeout.md) | chezmoi, timeout, five minutes, SIGKILL | timeout fixed; emulator acceptance pending |
-| [herdr-server-spawn-invalid-argument](herdr-server-spawn-invalid-argument.md) | failed to spawn herdr server, Invalid argument, pre_exec | minimal diagnostics confirmed on CLI and iPad |
+| [chezmoi-probe-waits-past-timeout](chezmoi-probe-waits-past-timeout.md) | chezmoi, not found, timeout, SIGKILL, supported | sh mode has no binary; locked candidate still fails device acceptance |
+| [herdr-server-spawn-invalid-argument](herdr-server-spawn-invalid-argument.md) | failed to spawn herdr server, Invalid argument, pre_exec, FIONBIO | CLI pane I/O and reattach pass; resize and iPad workflow pending |
 | [ish-illegal-instruction-despite-sse2](ish-illegal-instruction-despite-sse2.md) | Illegal instruction, SIGILL, Bad system call | corrected historical claims; version-specific acceptance pending |
 | [ish-tmux-ctrl-digit-dead-wrong-binding](ish-tmux-ctrl-digit-dead-wrong-binding.md) | Ctrl+digits, mouse, extended keys | minimal tmux seed supplied; device acceptance pending |
 | [sftp-connection-closed](sftp-connection-closed.md) | Connection closed, undumpable, SFTP exit 255 | missing PR_SET_DUMPABLE; legacy SCP and SSH streams verified |
@@ -102,4 +102,4 @@ if their original location stops being a natural reading flow.
 
 | Trap | Lives in | Why not here |
 |---|---|---|
-| (example: Tool X version Y bug) | `docs/tool-x.md` → "Known issues" | Already part of the tool's normal config narrative |
+| Herdr sleep assertion `left: 38`, `right: 4`; stale std after rust-src patch | [Rust std experiment](../docs/experiments.md#experimental-ish-rust-standard-library) | Missing clock_nanosleep and fresh-target build procedure are part of that experiment |

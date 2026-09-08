@@ -4,6 +4,10 @@
 模擬器測試，以及 iPhone／iPad 登入後的完整工作流程，是不同驗證層級。
 SSH 設定提供測試通道。
 
+2026-09-08 更新：程序／休眠相容版 Rust 標準庫已在 **iPad 原版 App 通過 18/18 項**。
+重新建置的 Herdr 已通過 CLI server、pane、shell I/O、detach 及相同 pane reattach。
+CLI host resize 傳遞與 iPad 原版 App 的 Herdr 工作流程仍待驗收。
+
 ## 環境與順序
 
 保留原 filesystem 與備份，先測其 Alpine 3.14 匯入副本；另依
@@ -60,7 +64,7 @@ Agent cases 只驗證啟動；之後繼續測互動 SSH 工作流程。記錄確
 | hako-code v0.2.3 | C／libc／pthread 加 curl；使用者確認傳入的 binary 可在 iPad 開啟 | 已回報啟動；登入後工具待驗收 |
 | Pi 0.73.1 | Node；須檢查間接版本要求及 ia32 下載器 | 待驗收 |
 | Gemini 0.58.0 | Node 與 child-process fallback；仍有間接版本要求 | 待驗收 |
-| Herdr v0.8.2 | i586 移植已建置；使用者在 iPad 重現 server spawn error 22 | 卡在 server 啟動 |
+| Herdr v0.8.2 | 相容 std 通過 18/18 項實機測試；重建版 CLI session 支援 pane I/O 與 reattach | iPad 原版 App session 與 resize 待驗收 |
 
 2026-09-08 host 結果：hako v0.2.3 分別以 Alpine GCC 10.3、Zig 0.15.2 建置成功，
 兩個靜態 binary 都在 iSH 命令列模擬器 commit
@@ -91,7 +95,7 @@ Node 24.18.1 版本檢查通過，但這次 CLI 建置執行最小 JavaScript �
 runtime 驗收。Herdr 的 libghostty-vt 已完成 i586 交叉編譯，Rust 主程式與 runtime
 須分別驗證。
 
-Herdr 最終建置結果：使用 Rust 自帶 linker 與 self-contained libraries 成功連結
+Herdr 初期建置結果：使用 Rust 自帶 linker 與 self-contained libraries 成功連結
 i586 執行檔，兩個 CLI guest 版本都通過 `--version`。啟動 named session 時失敗：
 `failed to spawn herdr server: Invalid argument (os error 22)`。
 Rust 1.96.1 的 Linux `pre_exec` 路徑需要 `SOCK_SEQPACKET`，這次調查的 iSH 尚未支援。
@@ -137,9 +141,136 @@ hako 的[初始化順序](https://github.com/mithraeums/hako-code/blob/452291112
 | 傳入的 hako／Herdr 雜湊 | 符合建置產物 |
 | hako v0.2.3 隔離版號 probe | 通過；登入後工作流程待驗收 |
 | Rust 一般子程序 | 通過 |
-| Rust `pre_exec`／SEQPACKET | Error 22，與 Herdr 阻礙一致 |
+| 原版 Rust `pre_exec`／SEQPACKET | Error 22，與原本的 Herdr 阻礙一致 |
+| 程序／休眠相容版 Rust std | 原版 App 通過 18/18 項；完整 Herdr session 仍待驗收 |
 | 帶 flags 的 raw STREAM socketpair | Error 93；普通 STREAM 可用 |
 
 SFTP 失敗與認證前的 banner 停頓是不同問題，見 [SSH 傳檔](ssh-server.md)。
 Rust 最小診斷以 Rust 1.96.1 從 repo 原始碼重新建置，傳入後驗證雜湊並限時執行。
 未在裝置安裝修補版 iSH kernel 或替換系統 libraries。
+
+## Chezmoi 管理器檢查
+
+裝置目前記錄 `manager=sh`，也沒有安裝 chezmoi 執行檔。這解釋了
+`-ash: chezmoi: not found`：sh 部署及 SSH／Finder 準備流程不會安裝它，
+重新載入 `.profile` 也無法補上缺少的執行檔。
+
+鎖定的 chezmoi v2.72.1 i386 候選檔在暫存目錄通過 archive／binary SHA-256
+檢查。版號命令正常結束，但 source-layout 模板印出 `supported` 後未結束。
+裝置上的 15 秒 SIGKILL wrapper 未能在 Mac 的 120 秒期限前返回；其後 SSH
+拒絕連線。使用者回報 App 閃退並重開；之後 SSH 恢復，manager=sh 與
+SSH／Finder 選項都保留。閃退的確切機制尚未確認。
+
+CLI 對照也失敗：七項以模擬器 SIGSEGV 結束，一項出現 Go runtime 錯誤後逾時。
+將 Go 限制為單處理器或停用非同步搶佔，都未得到正常結束的程序。候選檔未安裝，
+未持久化執行參數，保留原本可用的 sh 管理方式。結果見
+`experiments/chezmoi/results.json` 與
+[逾時 pitfall](https://github.com/daviddwlee84/dotfiles-iSH/blob/main/pitfalls/chezmoi-probe-waits-past-timeout.md)。
+鎖定候選檔能完整通過檢查後，才適合由完整 setup 遷移；只有印出結果不足以通過。
+
+## iSH 專用 Rust 標準庫實驗
+
+獨立建置的 Rust 1.96.1 已涵蓋子程序啟動與相對休眠的相容性缺口。擴充版在
+**iPad 原版 App 通過 18/18 項**（iSH 1.3.2（494）、Alpine 3.14.3），包含
+信號中斷休眠與並行建立子程序；每項期限 30 秒，SSH exit 0。相同的 macOS
+編譯器產物也在 CLI 通過全部 18 項。實機對照組仍顯示原版 std 的 `pre_exec`
+回報 EINVAL、相對休眠出現 `Bad system call`。先前只修改程序通道的 14 項
+結果保留為獨立歷史版本。完整 Herdr session 仍待驗收；詳見
+`experiments/rust-std/results.json`。
+
+`experiments/patches/` 內有兩個 patch：
+
+- `rust-1.96.1-ish-process-pipe.patch` 只在 `ish_compat` 下選擇原有的
+  CLOEXEC pipe 錯誤通道，保留全部 child callbacks。明確要求 pidfd 時回報
+  `Unsupported`，這是刻意比 upstream 的建議性 pidfd 選項更嚴格的行為。
+- `rust-1.96.1-ish-thread-sleep.patch` 因 iSH 缺少 `clock_nanosleep`，選用
+  原有的相對 `nanosleep` fallback。測試允許超時休眠，不聲稱 iSH 已完整實作
+  被信號中斷時的 nanosleep 語意。
+
+使用獨立的 Rust 1.96.1 sysroot 與相符且已校驗的 rust-src，不替換 host toolchain
+或裝置 libraries。該 component 的 SHA-256 為
+`b343b6553bc772225f6a2b5be5055017f29794dcf4e08020366b27a0a40fc1c2`。
+從 source root（`lib/rustlib/src/rust`）套用兩個 patch。iSH cfg 限定 32 位元
+x86 Linux musl，其他建置不啟用相容分支。維護者 container 以 Rust 自帶 linker
+配合原有的 Herdr i586 移植建置：
+
+```sh
+export PATH=/toolchain/bin:$PATH
+export RUSTC_BOOTSTRAP=1
+export RUSTFLAGS='--cfg ish_compat --check-cfg=cfg(ish_compat) -C linker-flavor=ld.lld -C linker=/toolchain/lib/rustlib/aarch64-unknown-linux-gnu/bin/rust-lld -C link-self-contained=yes'
+cargo build -Z build-std=std,panic_unwind --locked --offline --release \
+  --target-dir /target --target i586-unknown-linux-musl --bin herdr -j1
+```
+
+`/target` 必須是 host 預先建立並掛入的全新空目錄。修改 rust-src 後重用舊
+Cargo target 曾連到舊 std，即使 source 已更新；每個 std patch 版本都重新建置。
+上例保留 release 設定，採單工建置以減少 Herdr 大型編譯的記憶體壓力。
+
+macOS 維護者也可用獨立的 Rust 1.96.1 `aarch64-apple-darwin` compiler／host std，
+搭配相同 i586 target 與 source patches。將上例 Linux-host linker 改為該工具鏈
+自帶的 `aarch64-apple-darwin/bin/rust-lld`，並使用 macOS Zig 0.15.2，即可避開
+小型 Docker VM 的記憶體上限；輸出仍是 Linux ELF32 執行檔。Component 來源與
+runtime 結果記於 `experiments/rust-std/results.json`。
+
+先前 macOS 建置遇到 Zig 0.15.2 build runner 無法連結系統符號，因此在 i586
+移植之後套用 `herdr-i586-prebuilt-ghostty.patch`，加入明確且驗證
+target／大小／SHA-256 的 `HERDR_ISH_GHOSTTY_ARCHIVE`。最初 1,224,644-byte
+archive（`2420a175…e9196`）僅保留來源紀錄；它的 i386 結構值傳遞 ABI 有誤，
+不可安裝。目前 guard 只接受另一個 iSH 相容 archive：1,237,632 bytes，SHA-256
+`a8c7123d6e8e6df0cab93cd54f21d060953fa628b0474b74a510463167ea2222`。
+預設建置仍呼叫 Zig；archive path 只能由維護者明確指定。
+
+`RUSTC_BOOTSTRAP` 只為這個實驗啟用不穩定建置功能，不是 upstream 支援的替代
+工具鏈。Cargo 的 [build-std 文件](https://doc.rust-lang.org/cargo/reference/unstable.html#build-std)
+說明此功能，正常要求 nightly。Herdr 原始 lockfile、32 位元 FFI assertions、
+vendored PTY 初始化與 scalar libghostty 建置都保留，未開啟自動安裝。
+
+`experiments/rust-process-compat-probe.rs` 提供 `--list` 與 `--case NAME`。
+以重建後的 std 加上 `--cfg ish_pidfd_probe`，可加入兩項專用 pidfd 拒絕測試；
+每項以外部 30 秒強制終止期限執行。原版 std 的 pidfd 契約不同，對照建置不加此 cfg。
+
+## Herdr ABI 與 PTY 檢查
+
+最小 C／Zig 測試確認 Zig 0.15.2 會錯誤處理五個 i386 結構值參數，即使
+memory-layout assertions 都相符。C wrapper 保留公開原型，並在 Linux 通過全部
+127 項 assertions。只開啟 Ghostty 原有 libc allocator 時，iSH 的五組 terminal
+測試會逾時。`ghostty-vt-libc-option.patch` 新增僅限 x86 Linux musl 的 iSH flag，
+讓 terminal page backing 也改用 page-aligned libc allocation 並明確清零；這個
+archive 在 Linux binfmt 與 iSH CLI 都通過 127 項。詳見
+`experiments/zig-i386-abi/` 與 `experiments/ghostty-allocator/results.json`。
+
+Herdr 另需 local socket 相容路徑：iSH 使用 Rust UnixListener／UnixStream，且把
+不支援或無效的 socket receive-timeout 設定視為 best-effort；其他 build 保留
+`interprocess`。最終 CLI binary（`3ede5a4a…d9809`）可啟動 server 與 pane、完成
+client handshake、通過 shell 輸入輸出、detach，並 reattach 到同一 pane 與 shell
+PID。Host PTY 從 44x132 改為 55x172 後，pane 仍為 43x105，resize 未傳遞；owned
+server 仍正常停止。因 SSH 在暫存上傳前逾時，iPad 原版 App 測試待續，沒有安裝。
+詳見 `experiments/herdr/results.json`。
+
+另以實際 vendored `portable-pty` 與相符的相容 std，在全新的 Alpine 3.14.10
+CLI guest 執行 `experiments/portable-pty-probe.rs`。預設模式收到正確輸出與
+terminal size 後，阻塞等待 EOF，於 30 秒逾時；`--wait-after-output` 改在收到
+已知完成標記後 wait／回收子程序，24 ms 通過。未修改 library 初始化，PTY
+開啟、spawn、輸出與等待子程序均通過。Herdr 使用非阻塞 PTY 讀取，因此這個
+阻塞 EOF 限制無法解釋啟動失敗；最後輸出是否完整讀完及 pane 清理仍須驗收。
+
+## 並行的 SEQPACKET 核心原型
+
+`experiments/patches/ish-seqpacket.patch` 實作記憶體內的 AF_UNIX 訊息傳輸，
+而不是將 Darwin 不支援的 socket type 直接轉送。以 iSH
+`d189985e5cc6d0e70629efeb31505b51a9ce78af` 為基底，先套用既有的
+`ish-socketpair-host-args.patch`，再套新 patch。包含 socketpair、listener、
+訊息邊界、EOF／shutdown、nonblocking readiness、timeout，以及一般檔案／pipe
+描述符傳遞。C probe 與機器可讀結果放在 `experiments/seqpacket/`。
+
+原生 Linux 對照通過 46/46 項，修補後的 macOS CLI 通過 45/46。
+未通過的是 SCM_RIGHTS 傳遞 socket 描述符；在完成 Unix socket 引用循環回收前，
+此功能明確回傳 EOPNOTSUPP。原版 Rust std 的程序測試可在此核心通過，證明它能
+獨立解除最初的 spawn 依賴。該次使用原版 std 的 Herdr 隨後遇到缺少
+`clock_nanosleep`；上文的 std 休眠 patch 已涵蓋這個獨立缺口，無須修改裝置核心。
+
+這**尚非完整 Linux 支援**。共用描述符的並行 close 生命週期、完整 autobind／
+credentials 規則、其他 options／ioctl 與 edge-triggered epoll 行為仍待處理。
+這些有限測試的通過不代表上述路徑已驗證。雖已加入 Xcode source entries，尚未
+執行 Xcode 建置、簽署、側載或替換 iPad 核心。核心原型維持在 CLI 實驗環境；
+標準庫實驗則可在原版 App 執行。

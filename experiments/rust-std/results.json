@@ -1,0 +1,196 @@
+{
+  "date": "2026-09-08",
+  "status": "custom process and sleep std verified by 18 cases on original iPad and CLI; rebuilt Herdr passes CLI pane I/O and reattach, with resize and original-iPad workflow pending",
+  "rust_version": "1.96.1",
+  "rust_commit": "31fca3adb283cc9dfd56b49cdee9a96eb9c96ffd",
+  "target": "i586-unknown-linux-musl",
+  "rust_src": {
+    "url": "https://static.rust-lang.org/dist/2026-06-30/rust-src-1.96.1.tar.xz",
+    "sha256": "b343b6553bc772225f6a2b5be5055017f29794dcf4e08020366b27a0a40fc1c2",
+    "library_cargo_lock_sha256": "c7fbe8811bd7b2a3737deb1bc5d1ec2ee6d631bc00221d3d8a58d05814b3e965"
+  },
+  "patches": {
+    "experiments/patches/rust-1.96.1-ish-process-pipe.patch": "a69429e279f0d874075c83e3238703a6c33636a02587c8b3faae019ea5025e57",
+    "experiments/patches/rust-1.96.1-ish-thread-sleep.patch": "b670c0cf1f374f9407384dc5dd4e98639a6e039fb4c7b8d3a9687b4703089b07"
+  },
+  "probe": {
+    "source": "experiments/rust-process-compat-probe.rs",
+    "source_sha256": "7733059cb20ca00a70220c26264c69050812342cc9704cd6a94b99d0af449127",
+    "per_case_kill_deadline_seconds": 30,
+    "native_macos_base_cases": 16,
+    "native_macos_passed": 16
+  },
+  "original_device": {
+    "ish": "1.3.2 (494)",
+    "alpine": "3.14.3",
+    "reported_arch": "i686",
+    "ipados_build": "not recorded",
+    "kernel_or_system_library_changes": false,
+    "process_only_revision": {
+      "passed": 14,
+      "failed": 0,
+      "ssh_exit": 0,
+      "binaries": {
+        "rust-process-compat-stock": {
+          "sha256": "02861bc0bc6c3de4e730a1a289e6941f43b0b28a02c7b880f2e667d59daee7d1",
+          "bytes": 4731216
+        },
+        "rust-spawn-probe-ish": {
+          "sha256": "1f4b8099970c55f8c619a252d0b16bb18e7e56688fb77e0408649e82e411f1e2",
+          "bytes": 711336
+        },
+        "rust-process-compat-probe-ish": {
+          "sha256": "42ee007ccb0f4e9f96b9b7c56e58241cf2b8284b848ca1ae9d5fed206cd42698",
+          "bytes": 785824
+        }
+      },
+      "control": "stock std normal spawn passes; pre_exec fails EINVAL"
+    },
+    "process_and_sleep_revision": {
+      "status": "passed on original iPad App over SSH",
+      "compiler_host": "aarch64-apple-darwin",
+      "passed": 18,
+      "failed": 0,
+      "ssh_exit": 0,
+      "per_case_kill_deadline_seconds": 30,
+      "binaries": {
+        "rust-process-compat-stock-v2": {
+          "sha256": "10c39186da981608a1c57ab2ad82310a4e583fc948ea41b53770d8f378f7de6d",
+          "bytes": 4793996
+        },
+        "rust-process-compat-native": {
+          "sha256": "5b842353f621260517950a6c2c595ec0a583586e65bcfbda9854f8dcd1b7f062",
+          "bytes": 1480092
+        }
+      },
+      "cases": [
+        "normal-spawn",
+        "pre-exec-success",
+        "pre-exec-error",
+        "missing-executable",
+        "exec-channel-eof",
+        "stdio-roundtrip",
+        "wait-and-reap",
+        "kill-and-reap",
+        "session-and-hook-order",
+        "descriptor-cloexec",
+        "descriptor-pre-exec",
+        "repeat-resource-cleanup",
+        "sleep-zero",
+        "sleep-relative",
+        "sleep-interrupted",
+        "parallel-pre-exec",
+        "pidfd-rejected-posix",
+        "pidfd-rejected-pre-exec"
+      ],
+      "controls": [
+        "stock std normal-spawn passes",
+        "stock std pre-exec-success fails EINVAL",
+        "stock std sleep-relative terminates with Bad system call"
+      ],
+      "previous_linux_host_artifacts": {
+        "status": "not device tested; superseded by native compiler artifact using the same two std source patches",
+        "binaries": {
+          "rust-process-compat-stock-v2": {
+            "sha256": "10c39186da981608a1c57ab2ad82310a4e583fc948ea41b53770d8f378f7de6d",
+            "bytes": 4793996
+          },
+          "rust-spawn-probe-ish-v2": {
+            "sha256": "49350ec1a0ca2d43ebab8714783afdf59fd4dd4025b0425870adc60f0cc4d9ca",
+            "bytes": 711464
+          },
+          "rust-process-compat-probe-ish-v2": {
+            "sha256": "bbba12ed06b996cb6d89f5ec5956ce23ba738e7091d1696fa09f750a8bb4c25c",
+            "bytes": 856048
+          }
+        }
+      }
+    }
+  },
+  "cli": {
+    "ish_base_commit": "d189985e5cc6d0e70629efeb31505b51a9ce78af",
+    "source_patches": [
+      "fakefsify-locale.patch",
+      "ish-cvtdq2pd.patch",
+      "ish-socketpair-host-args.patch"
+    ],
+    "ish_binary_sha256": "03c3ccd832df6ed95222d38a14137096146ec6aa44d2ace94b194a46d5c2f086",
+    "alpine": "3.14.10 x86",
+    "expanded_cases_passed": 18,
+    "expanded_cases_failed": 0,
+    "host_exit": 0,
+    "controls": [
+      "stock pre_exec fails EINVAL",
+      "stock sleep-relative panics: assertion left 38, right 4"
+    ],
+    "binaries": {
+      "rust-process-compat-stock-v2": {
+        "sha256": "10c39186da981608a1c57ab2ad82310a4e583fc948ea41b53770d8f378f7de6d",
+        "bytes": 4793996
+      },
+      "rust-spawn-probe-ish-v2": {
+        "sha256": "49350ec1a0ca2d43ebab8714783afdf59fd4dd4025b0425870adc60f0cc4d9ca",
+        "bytes": 711464
+      },
+      "rust-process-compat-probe-ish-v2": {
+        "sha256": "bbba12ed06b996cb6d89f5ec5956ce23ba738e7091d1696fa09f750a8bb4c25c",
+        "bytes": 856048
+      }
+    }
+  },
+  "herdr": {
+    "version": "0.8.2",
+    "source_commit": "9eb521456ac0d19d3ab3d9d7cea3cca10baa8a4c",
+    "status": "CLI server, pane, shell I/O, detach and same-pane reattach passed; CLI host-resize and original-iPad workflow remain pending",
+    "session_acceptance": "partial CLI acceptance; see experiments/herdr/results.json",
+    "linked_std_verification": {
+      "std_sha256": "ad0a73a7722ec41ab132764a4a689a05e6ac7d95e6e5b2eefd8ff5adea485729",
+      "probe_sha256": "abfc2ab876581b78b004d24ad124f4cac595e988c9c589f0ce76fd8da31fade5",
+      "probe_bytes": 1474780,
+      "method": "Direct rustc compilation against explicit matching fresh Herdr target rlibs; all input hashes stable before and after compilation",
+      "cli_cases": {
+        "sleep-relative": "passed, exit 0",
+        "sleep-interrupted": "passed, exit 0"
+      }
+    },
+    "sha256": "3ede5a4aed39470a67a66453b305f086bf51275c03d7bd0c16c513beb3dd9809",
+    "bytes": 21556492,
+    "compiler_host": "aarch64-apple-darwin",
+    "elf": "ELF32 i386 static",
+    "version_probe_exit": 0,
+    "headless_outer_timeout_seconds": 90,
+    "client_ready_timeout_seconds": 15,
+    "pty_attach_probe": "initial attach, shell I/O, detach, same-shell reattach and owned-server stop passed; host resize did not propagate",
+    "prebuilt_ghostty": {
+      "patch": "experiments/patches/herdr-i586-prebuilt-ghostty.patch",
+      "patch_sha256": "5daa17f93f248e4f7549aa159f80daf97775996142a32fcb56a1526edd96e3da",
+      "archive_sha256": "a8c7123d6e8e6df0cab93cd54f21d060953fa628b0474b74a510463167ea2222",
+      "archive_bytes": 1237632,
+      "selection_guard_cases": {
+        "valid": "passed",
+        "wrong_size": "rejected",
+        "wrong_hash": "rejected",
+        "wrong_target": "rejected"
+      },
+      "runtime_abi_status": "C ABI plus iSH allocator matrix passes 127/127 in Linux and iSH CLI; see experiments/ghostty-allocator/results.json"
+    }
+  },
+  "limits": [
+    "Explicit pidfd requests fail Unsupported before spawn; intentionally stricter than upstream advisory option.",
+    "Interrupted sleep is checked for signal delivery and no early return, not exact remaining-time or complete nanosleep conformance.",
+    "Fresh Cargo target required after std source changes; freeze source through build and verify runtime.",
+    "No iSH kernel replacement, target package upgrades, host/global rustup replacement or agent installer activation."
+  ],
+  "native_macos": {
+    "toolchain": "Rust 1.96.1 aarch64-apple-darwin",
+    "component_archives_sha256": {
+      "rustc": "9b548f0665f85f3c7fd45165611e3dea79f048c69d163be193986310d204fc2c",
+      "cargo": "2f43d75e9ad3febae5022c6f295cf93b74131cfdb1293a83e291f878ea9585a0",
+      "host_std": "0d433a74c303febc915f8fa1091ef166445706461d0c96984ecb7303aa8208f5"
+    },
+    "std_sha256": "784b850a65ed3e0287bd7b6d55ba29693d9ed4a1f18039816651ba479429a609",
+    "direct_probe_sha256": "5b842353f621260517950a6c2c595ec0a583586e65bcfbda9854f8dcd1b7f062",
+    "passed": 18,
+    "failed": 0
+  }
+}

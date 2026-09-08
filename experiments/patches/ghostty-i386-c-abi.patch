@@ -1,0 +1,213 @@
+diff --git a/vendor/libghostty-vt/src/build/GhosttyZig.zig b/vendor/libghostty-vt/src/build/GhosttyZig.zig
+index 44c300e..e0a3930 100644
+--- a/vendor/libghostty-vt/src/build/GhosttyZig.zig
++++ b/vendor/libghostty-vt/src/build/GhosttyZig.zig
+@@ -128,6 +128,17 @@ fn initVt(
+             b.systemIntegrationOption("simdutf", .{}) and
+             cfg.target.result.abi != .msvc) true else null,
+     });
++    // Add the C ABI bridge once per C module (shared/static libraries use the
++    // same module). It introduces no libc calls or allocator-policy changes.
++    if (vt_options.c_abi and cfg.target.result.cpu.arch == .x86 and
++        cfg.target.result.os.tag == .linux)
++    {
++        vt.addIncludePath(b.path("include"));
++        vt.addCSourceFile(.{
++            .file = b.path("src/terminal/c/abi_i386.c"),
++            .flags = &.{"-std=c11"},
++        });
++    }
+     vt.addOptions("build_options", general_options);
+     vt_options.add(b, vt);
+ 
+diff --git a/vendor/libghostty-vt/src/lib_vt.zig b/vendor/libghostty-vt/src/lib_vt.zig
+index e01cdbb..b4d04b9 100644
+--- a/vendor/libghostty-vt/src/lib_vt.zig
++++ b/vendor/libghostty-vt/src/lib_vt.zig
+@@ -146,6 +146,11 @@ comptime {
+     // we want to reference the C API so that it gets exported.
+     if (@import("root") == lib) {
+         const c = terminal.c_api;
++        // Zig 0.15.2's i386 C ABI lowers some by-value extern structs
++        // differently from Clang. Keep the public C signatures in a C shim,
++        // and expose distinct pointer-only entries for the five Herdr paths.
++        const use_i386_c_shim = builtin.cpu.arch == .x86 and builtin.os.tag == .linux;
++        const i386_c_shim = @import("terminal/c/abi_i386.zig");
+         @export(&c.key_event_new, .{ .name = "ghostty_key_event_new" });
+         @export(&c.key_event_free, .{ .name = "ghostty_key_event_free" });
+         @export(&c.key_event_set_action, .{ .name = "ghostty_key_event_set_action" });
+@@ -176,7 +181,11 @@ comptime {
+         @export(&c.mouse_event_get_button, .{ .name = "ghostty_mouse_event_get_button" });
+         @export(&c.mouse_event_set_mods, .{ .name = "ghostty_mouse_event_set_mods" });
+         @export(&c.mouse_event_get_mods, .{ .name = "ghostty_mouse_event_get_mods" });
+-        @export(&c.mouse_event_set_position, .{ .name = "ghostty_mouse_event_set_position" });
++        if (use_i386_c_shim) {
++            @export(&i386_c_shim.mouse_event_set_position, .{ .name = "ghostty_i386_mouse_event_set_position_indirect" });
++        } else {
++            @export(&c.mouse_event_set_position, .{ .name = "ghostty_mouse_event_set_position" });
++        }
+         @export(&c.mouse_event_get_position, .{ .name = "ghostty_mouse_event_get_position" });
+         @export(&c.mouse_encoder_new, .{ .name = "ghostty_mouse_encoder_new" });
+         @export(&c.mouse_encoder_free, .{ .name = "ghostty_mouse_encoder_free" });
+@@ -227,7 +236,11 @@ comptime {
+         @export(&c.sgr_unknown_partial, .{ .name = "ghostty_sgr_unknown_partial" });
+         @export(&c.sgr_attribute_tag, .{ .name = "ghostty_sgr_attribute_tag" });
+         @export(&c.sgr_attribute_value, .{ .name = "ghostty_sgr_attribute_value" });
+-        @export(&c.formatter_terminal_new, .{ .name = "ghostty_formatter_terminal_new" });
++        if (use_i386_c_shim) {
++            @export(&i386_c_shim.formatter_terminal_new, .{ .name = "ghostty_i386_formatter_terminal_new_indirect" });
++        } else {
++            @export(&c.formatter_terminal_new, .{ .name = "ghostty_formatter_terminal_new" });
++        }
+         @export(&c.formatter_format_buf, .{ .name = "ghostty_formatter_format_buf" });
+         @export(&c.formatter_format_alloc, .{ .name = "ghostty_formatter_format_alloc" });
+         @export(&c.formatter_free, .{ .name = "ghostty_formatter_free" });
+@@ -254,13 +267,21 @@ comptime {
+         @export(&c.render_state_row_cells_get_multi, .{ .name = "ghostty_render_state_row_cells_get_multi" });
+         @export(&c.render_state_row_cells_free, .{ .name = "ghostty_render_state_row_cells_free" });
+         @export(&c.render_state_free, .{ .name = "ghostty_render_state_free" });
+-        @export(&c.terminal_new, .{ .name = "ghostty_terminal_new" });
++        if (use_i386_c_shim) {
++            @export(&i386_c_shim.terminal_new, .{ .name = "ghostty_i386_terminal_new_indirect" });
++        } else {
++            @export(&c.terminal_new, .{ .name = "ghostty_terminal_new" });
++        }
+         @export(&c.terminal_free, .{ .name = "ghostty_terminal_free" });
+         @export(&c.terminal_reset, .{ .name = "ghostty_terminal_reset" });
+         @export(&c.terminal_resize, .{ .name = "ghostty_terminal_resize" });
+         @export(&c.terminal_set, .{ .name = "ghostty_terminal_set" });
+         @export(&c.terminal_vt_write, .{ .name = "ghostty_terminal_vt_write" });
+-        @export(&c.terminal_scroll_viewport, .{ .name = "ghostty_terminal_scroll_viewport" });
++        if (use_i386_c_shim) {
++            @export(&i386_c_shim.terminal_scroll_viewport, .{ .name = "ghostty_i386_terminal_scroll_viewport_indirect" });
++        } else {
++            @export(&c.terminal_scroll_viewport, .{ .name = "ghostty_terminal_scroll_viewport" });
++        }
+         @export(&c.terminal_compression_activity, .{ .name = "ghostty_terminal_compression_activity" });
+         @export(&c.terminal_compress, .{ .name = "ghostty_terminal_compress" });
+         @export(&c.terminal_mode_get, .{ .name = "ghostty_terminal_mode_get" });
+@@ -286,7 +307,11 @@ comptime {
+         @export(&c.selection_gesture_event_new, .{ .name = "ghostty_selection_gesture_event_new" });
+         @export(&c.selection_gesture_event_free, .{ .name = "ghostty_selection_gesture_event_free" });
+         @export(&c.selection_gesture_event_set, .{ .name = "ghostty_selection_gesture_event_set" });
+-        @export(&c.terminal_grid_ref, .{ .name = "ghostty_terminal_grid_ref" });
++        if (use_i386_c_shim) {
++            @export(&i386_c_shim.terminal_grid_ref, .{ .name = "ghostty_i386_terminal_grid_ref_indirect" });
++        } else {
++            @export(&c.terminal_grid_ref, .{ .name = "ghostty_terminal_grid_ref" });
++        }
+         @export(&c.terminal_grid_ref_track, .{ .name = "ghostty_terminal_grid_ref_track" });
+         @export(&c.terminal_point_from_grid_ref, .{ .name = "ghostty_terminal_point_from_grid_ref" });
+         @export(&c.kitty_graphics_get, .{ .name = "ghostty_kitty_graphics_get" });
+diff --git a/vendor/libghostty-vt/src/terminal/c/abi_i386.c b/vendor/libghostty-vt/src/terminal/c/abi_i386.c
+new file mode 100644
+index 0000000..a6ca900
+--- /dev/null
++++ b/vendor/libghostty-vt/src/terminal/c/abi_i386.c
+@@ -0,0 +1,50 @@
++/* Scoped workaround for Zig 0.15.2 i386/Linux by-value aggregate lowering.
++ * Clang receives the unchanged public C ABI, then passes the local aggregate
++ * by pointer to a distinct, correctly typed Zig C entry. No function aliases
++ * or caller-side casts change the declared ABI. Other targets do not build it.
++ */
++#include <ghostty/vt.h>
++
++#if !defined(__i386__) || !defined(__linux__)
++#error "The i386 C ABI bridge is only for 32-bit x86 Linux"
++#endif
++
++extern GhosttyResult ghostty_i386_terminal_new_indirect(
++    const GhosttyAllocator *, GhosttyTerminal *, const GhosttyTerminalOptions *);
++extern GhosttyResult ghostty_i386_formatter_terminal_new_indirect(
++    const GhosttyAllocator *, GhosttyFormatter *, GhosttyTerminal,
++    const GhosttyFormatterTerminalOptions *);
++extern void ghostty_i386_terminal_scroll_viewport_indirect(
++    GhosttyTerminal, const GhosttyTerminalScrollViewport *);
++extern GhosttyResult ghostty_i386_terminal_grid_ref_indirect(
++    GhosttyTerminal, const GhosttyPoint *, GhosttyGridRef *);
++extern void ghostty_i386_mouse_event_set_position_indirect(
++    GhosttyMouseEvent, const GhosttyMousePosition *);
++
++GHOSTTY_API GhosttyResult ghostty_terminal_new(
++    const GhosttyAllocator *allocator, GhosttyTerminal *terminal,
++    GhosttyTerminalOptions options) {
++    return ghostty_i386_terminal_new_indirect(allocator, terminal, &options);
++}
++
++GHOSTTY_API GhosttyResult ghostty_formatter_terminal_new(
++    const GhosttyAllocator *allocator, GhosttyFormatter *formatter,
++    GhosttyTerminal terminal, GhosttyFormatterTerminalOptions options) {
++    return ghostty_i386_formatter_terminal_new_indirect(
++        allocator, formatter, terminal, &options);
++}
++
++GHOSTTY_API void ghostty_terminal_scroll_viewport(
++    GhosttyTerminal terminal, GhosttyTerminalScrollViewport behavior) {
++    ghostty_i386_terminal_scroll_viewport_indirect(terminal, &behavior);
++}
++
++GHOSTTY_API GhosttyResult ghostty_terminal_grid_ref(
++    GhosttyTerminal terminal, GhosttyPoint point, GhosttyGridRef *out_ref) {
++    return ghostty_i386_terminal_grid_ref_indirect(terminal, &point, out_ref);
++}
++
++GHOSTTY_API void ghostty_mouse_event_set_position(
++    GhosttyMouseEvent event, GhosttyMousePosition position) {
++    ghostty_i386_mouse_event_set_position_indirect(event, &position);
++}
+diff --git a/vendor/libghostty-vt/src/terminal/c/abi_i386.zig b/vendor/libghostty-vt/src/terminal/c/abi_i386.zig
+new file mode 100644
+index 0000000..201b7b2
+--- /dev/null
++++ b/vendor/libghostty-vt/src/terminal/c/abi_i386.zig
+@@ -0,0 +1,50 @@
++//! Pointer-only C entries paired with abi_i386.c. Public C declarations and
++//! extern struct layouts stay unchanged. This covers five Herdr call paths,
++//! not every aggregate in the complete libghostty C API.
++const lib = @import("../lib.zig");
++const terminal = @import("terminal.zig");
++const formatter = @import("formatter.zig");
++const grid_ref = @import("grid_ref.zig");
++const mouse_event = @import("mouse_event.zig");
++const point = @import("../point.zig");
++const Result = @import("result.zig").Result;
++const CAllocator = lib.alloc.Allocator;
++
++pub fn terminal_new(
++    allocator: ?*const CAllocator,
++    result: *terminal.Terminal,
++    options: *const terminal.Options,
++) callconv(.c) Result {
++    return terminal.new(allocator, result, options.*);
++}
++
++pub fn formatter_terminal_new(
++    allocator: ?*const CAllocator,
++    result: *formatter.Formatter,
++    terminal_: terminal.Terminal,
++    options: *const formatter.TerminalOptions,
++) callconv(.c) Result {
++    return formatter.terminal_new(allocator, result, terminal_, options.*);
++}
++
++pub fn terminal_scroll_viewport(
++    terminal_: terminal.Terminal,
++    behavior: *const terminal.ScrollViewport,
++) callconv(.c) void {
++    terminal.scroll_viewport(terminal_, behavior.*);
++}
++
++pub fn terminal_grid_ref(
++    terminal_: terminal.Terminal,
++    position: *const point.Point.C,
++    out_ref: ?*grid_ref.CGridRef,
++) callconv(.c) Result {
++    return terminal.grid_ref(terminal_, position.*, out_ref);
++}
++
++pub fn mouse_event_set_position(
++    event: mouse_event.Event,
++    position: *const mouse_event.Position,
++) callconv(.c) void {
++    mouse_event.set_position(event, position.*);
++}

@@ -1,0 +1,51 @@
+{
+  "date": "2026-09-08",
+  "target": "x86-linux-musl",
+  "cpu": "pentium",
+  "optimization": "ReleaseSmall",
+  "simd": false,
+  "scope": "Production libghostty-vt C API tests; no iPad App execution",
+  "controls": {
+    "abi_wrapper_without_libc": {
+      "archive_sha256": "809495ada7f3d6c42c3d9bc1d1746212d311519cc3ad5c3781f33ad582abbb06",
+      "archive_bytes": 1227018,
+      "linux_assertions_passed": 127,
+      "ish_cli_mouse_assertions_passed": 5,
+      "ish_cli_terminal_suites": "SIGSEGV before first result assertion"
+    },
+    "libc_default_allocator_only": {
+      "archive_sha256": "f7c27f7c6d360e841625661a459016493dc4ac9d4265060d9a03ad630755bbb7",
+      "archive_bytes": 1238770,
+      "probe_sha256": "8d0a28dc6f6834dc34f3ec2ace22fb480b46586791c028a22f93d78c7367521b",
+      "linux_assertions_passed": 127,
+      "ish_cli_mouse_assertions_passed": 5,
+      "ish_cli_terminal_suites": "five suites timed out after 45 seconds"
+    }
+  },
+  "ish_compat_allocator": {
+    "archive_sha256": "a8c7123d6e8e6df0cab93cd54f21d060953fa628b0474b74a510463167ea2222",
+    "archive_bytes": 1237632,
+    "probe_sha256": "bf4850b3eb9876467cc7270d771815dff777d5189f96e3469d0f746e3929cf54",
+    "probe_bytes": 1158508,
+    "linux_docker": {
+      "assertions_passed": 127,
+      "assertions_failed": 0,
+      "suites_completed": 6
+    },
+    "ish_cli": {
+      "assertions_passed": 127,
+      "assertions_failed": 0,
+      "suites_completed": 6
+    }
+  },
+  "behavior": [
+    "The opt-in iSH build links libc for the documented NULL-allocator path.",
+    "Terminal memory-pool and Page backing allocations use libc with page alignment and explicit zero initialization.",
+    "The option is rejected outside 32-bit x86 Linux musl; default builds are unchanged.",
+    "Kitty graphics file mappings remain unchanged and were not exercised by this terminal constructor matrix."
+  ],
+  "limits": [
+    "Linux execution uses the existing Docker i386 binfmt configuration, not native i386 hardware.",
+    "Passing the C API matrix is not full Herdr session or original iPad acceptance."
+  ]
+}

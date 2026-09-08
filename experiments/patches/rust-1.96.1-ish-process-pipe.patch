@@ -1,0 +1,84 @@
+--- a/library/std/src/sys/process/unix/unix.rs
++++ b/library/std/src/sys/process/unix/unix.rs
+@@ -1,3 +1,7 @@
++// This cfg is only for the experimental iSH sysroot; upstream builds are unchanged.
++#[cfg(all(ish_compat, not(all(target_os = "linux", target_arch = "x86", target_env = "musl"))))]
++compile_error!("ish_compat requires 32-bit x86 Linux musl");
++
+ #[cfg(target_os = "vxworks")]
+ use libc::RTP_ID as pid_t;
+ #[cfg(not(target_os = "vxworks"))]
+@@ -68,16 +72,27 @@
+             ));
+         }
+ 
++        // iSH has no pidfd implementation. Reject an explicit request before
++        // posix_spawn as well as fork. This is intentionally stricter than
++        // upstream's advisory create_pidfd behavior.
++        #[cfg(all(target_os = "linux", ish_compat))]
++        if self.get_create_pidfd() {
++            return Err(io::const_error!(
++                ErrorKind::Unsupported,
++                "pidfd is unavailable in the experimental iSH std",
++            ));
++        }
++
+         let (ours, theirs) = self.setup_io(default, needs_stdin)?;
+ 
+         if let Some(ret) = self.posix_spawn(&theirs, envp.as_ref())? {
+             return Ok((ret, ours));
+         }
+ 
+-        #[cfg(target_os = "linux")]
++        #[cfg(all(target_os = "linux", not(ish_compat)))]
+         let (input, output) = sys::net::Socket::new_pair(libc::AF_UNIX, libc::SOCK_SEQPACKET)?;
+ 
+-        #[cfg(not(target_os = "linux"))]
++        #[cfg(any(not(target_os = "linux"), ish_compat))]
+         let (input, output) = sys::pipe::pipe()?;
+ 
+         // Whatever happens after the fork is almost for sure going to touch or
+@@ -97,7 +112,7 @@
+             crate::panic::always_abort();
+             mem::forget(env_lock); // avoid non-async-signal-safe unlocking
+             drop(input);
+-            #[cfg(target_os = "linux")]
++            #[cfg(all(target_os = "linux", not(ish_compat)))]
+             if self.get_create_pidfd() {
+                 self.send_pidfd(&output);
+             }
+@@ -124,13 +139,13 @@
+         drop(env_lock);
+         drop(output);
+ 
+-        #[cfg(target_os = "linux")]
++        #[cfg(all(target_os = "linux", not(ish_compat)))]
+         let pidfd = if self.get_create_pidfd() { self.recv_pidfd(&input) } else { -1 };
+ 
+-        #[cfg(not(target_os = "linux"))]
++        #[cfg(any(not(target_os = "linux"), ish_compat))]
+         let pidfd = -1;
+ 
+-        // Safety: We obtained the pidfd (on Linux) using SOCK_SEQPACKET, so it's valid.
++        // Safety: pidfd is either -1 or a valid descriptor received over SOCK_SEQPACKET.
+         let mut p = unsafe { Process::new(pid, pidfd) };
+         let mut bytes = [0; 8];
+ 
+@@ -830,7 +845,7 @@
+         }
+     }
+ 
+-    #[cfg(target_os = "linux")]
++    #[cfg(all(target_os = "linux", not(ish_compat)))]
+     fn send_pidfd(&self, sock: &crate::sys::net::Socket) {
+         use libc::{CMSG_DATA, CMSG_FIRSTHDR, CMSG_LEN, CMSG_SPACE, SCM_RIGHTS, SOL_SOCKET};
+ 
+@@ -888,7 +903,7 @@
+         }
+     }
+ 
+-    #[cfg(target_os = "linux")]
++    #[cfg(all(target_os = "linux", not(ish_compat)))]
+     fn recv_pidfd(&self, sock: &crate::sys::net::Socket) -> pid_t {
+         use libc::{CMSG_DATA, CMSG_FIRSTHDR, CMSG_LEN, CMSG_SPACE, SCM_RIGHTS, SOL_SOCKET};
+ 

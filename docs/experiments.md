@@ -4,6 +4,11 @@
 container run, command-line emulator test and authenticated iPhone/iPad workflow
 are separate verification levels. SSH setup provides the test channel.
 
+2026-09-08 update: the custom Rust process/sleep standard library passes **18/18
+cases on the original iPad App**. The rebuilt Herdr now passes CLI server, pane,
+shell I/O, detach and same-pane reattach checks. CLI host-resize propagation and
+the original-iPad Herdr workflow remain unaccepted.
+
 ## Environments and order
 
 Keep the original filesystem and a backup. First test its imported Alpine 3.14
@@ -65,7 +70,7 @@ Official iSH and patched iSH need separate result rows. This round allows patche
 | hako-code v0.2.3 | C/libc/pthread and curl; user confirms opening the transferred binary on iPad | Startup reported; authenticated tools pending |
 | Pi 0.73.1 | Node; transitive version floor and ia32 downloader need checking | Pending |
 | Gemini 0.58.0 | Node with child-process fallback; transitive version floor applies | Pending |
-| Herdr v0.8.2 | i586 port builds; user reproduces server spawn error 22 on iPad | Blocked at server startup |
+| Herdr v0.8.2 | Custom std passes 18/18 device cases; rebuilt CLI session supports pane I/O and reattach | Original-iPad session and resize acceptance pending |
 
 2026-09-08 host result: hako v0.2.3 builds with both Alpine GCC 10.3 and Zig
 0.15.2, and both static binaries pass `--version` inside the iSH command-line
@@ -98,7 +103,7 @@ in debug). The `cvtdq2pd` patch does not resolve this case. Pi/Gemini remain gat
 on a functioning runtime. Herdr's libghostty-vt cross-build for i586 succeeds;
 the full Rust/runtime acceptance is separate.
 
-Final Herdr build result: the i586 executable links successfully with Rust's
+Initial Herdr build result: the i586 executable links successfully with Rust's
 bundled linker and self-contained libraries. It passes `--version` in both CLI
 guest releases. Named-session startup fails with `failed to spawn herdr server:
 Invalid argument (os error 22)`. Rust 1.96.1's Linux `pre_exec` path needs
@@ -151,10 +156,162 @@ startup without touching the user's hako configuration or authenticating a model
 | Transferred hako and Herdr hashes | Match the build artifacts |
 | hako v0.2.3 isolated version probe | Passed; authenticated workflow pending |
 | Rust ordinary process spawning | Passed |
-| Rust `pre_exec` / SEQPACKET | Error 22, matching the Herdr blocker |
+| Original Rust `pre_exec` / SEQPACKET | Error 22, matching the original Herdr blocker |
+| Custom Rust process/sleep std | 18/18 passed on the original App; full Herdr session remains pending |
 | Raw flagged STREAM socketpair | Error 93; plain STREAM works |
 
 SFTP's failure is separate from pre-authentication banner stalls; see
 [SSH file transfer](ssh-server.md). Rust diagnostics were freshly built from the
 checked-in sources with Rust 1.96.1, verified after transfer, and run with bounded
 timeouts. No patched iSH kernel or replacement system libraries were installed.
+
+## Chezmoi manager check
+
+The device currently records `manager=sh`, with no chezmoi executable installed.
+That explains `-ash: chezmoi: not found`: sh deployment and the SSH/Finder
+preparation paths do not install it, and reloading `.profile` cannot fix absence.
+
+The locked chezmoi v2.72.1 i386 candidate passed archive/binary SHA-256 checks in
+a scratch directory. Its version command exited 0, but the source-layout template
+printed `supported` without completing. The device's 15-second SIGKILL wrapper
+did not return before the Mac's 120-second deadline. SSH subsequently refused
+connections. The user reported an App crash and reopened iSH; SSH then recovered
+with manager=sh and SSH/Finder selections intact. The exact crash mechanism is
+not established.
+
+The CLI comparison also failed: seven cases ended with emulator SIGSEGV and one
+timed out with Go runtime errors. Limiting Go to one processor or disabling
+asynchronous preemption did not yield a passing process. No candidate was
+installed, no runtime setting was persisted, and the working sh manager was
+retained. See `experiments/chezmoi/results.json` and the
+[timeout pitfall](https://github.com/daviddwlee84/dotfiles-iSH/blob/main/pitfalls/chezmoi-probe-waits-past-timeout.md).
+Full setup should only migrate after the locked candidate can complete its checks;
+printed output alone is insufficient.
+
+## Experimental iSH Rust standard library
+
+The private Rust 1.96.1 build now covers the process-spawn and relative-sleep
+gaps. The expanded variant passed **18/18 cases on the original iPad App**
+(iSH 1.3.2 (494), Alpine 3.14.3), including interrupted sleep and concurrent
+spawning, with a 30-second deadline per case and SSH exit 0. The same native
+macOS compiler artifact passed all 18 in the CLI. Device controls still show
+stock std failing `pre_exec` with EINVAL and relative sleep with `Bad system call`.
+The earlier 14-case process-only result remains a separate historical revision.
+Full Herdr session acceptance is still pending; see `experiments/rust-std/results.json`.
+
+Two patches live in `experiments/patches/`:
+
+- `rust-1.96.1-ish-process-pipe.patch` selects the existing CLOEXEC pipe error
+  channel only under `ish_compat`; all child callbacks remain intact. Explicit
+  pidfd requests return `Unsupported`. This is intentionally stricter than the
+  upstream advisory pidfd option.
+- `rust-1.96.1-ish-thread-sleep.patch` selects the existing relative `nanosleep`
+  fallback because iSH lacks `clock_nanosleep`. The test accepts oversleep and
+  does not claim that iSH fully implements interrupted-nanosleep semantics.
+
+Use a separate Rust 1.96.1 sysroot with the matching verified rust-src component;
+never replace the host toolchain or device libraries. The component SHA-256 is
+`b343b6553bc772225f6a2b5be5055017f29794dcf4e08020366b27a0a40fc1c2`.
+Apply both patches from the source root (`lib/rustlib/src/rust`). The iSH cfg
+requires 32-bit x86 Linux musl and leaves other builds inactive. The maintainer
+container build uses Rust's bundled linker and the existing i586 Herdr port:
+
+```sh
+export PATH=/toolchain/bin:$PATH
+export RUSTC_BOOTSTRAP=1
+export RUSTFLAGS='--cfg ish_compat --check-cfg=cfg(ish_compat) -C linker-flavor=ld.lld -C linker=/toolchain/lib/rustlib/aarch64-unknown-linux-gnu/bin/rust-lld -C link-self-contained=yes'
+cargo build -Z build-std=std,panic_unwind --locked --offline --release \
+  --target-dir /target --target i586-unknown-linux-musl --bin herdr -j1
+```
+
+`/target` must be an empty directory created on the host before mounting it.
+Reusing an earlier Cargo target after editing rust-src linked stale std artifacts
+in this experiment; rebuild in a fresh directory for each std patch revision.
+The command keeps the release profile and uses one build job to limit memory
+pressure during the large Herdr compilation.
+
+A native macOS maintainer build can use a separate Rust 1.96.1
+`aarch64-apple-darwin` compiler/host-std with the same i586 target and source
+patches. Select its bundled `aarch64-apple-darwin/bin/rust-lld` instead of the
+Linux-host linker shown above, and use the macOS Zig 0.15.2 binary. This avoids
+the memory ceiling of a small Docker VM; the output is still a Linux ELF32
+executable. Component provenance and runtime results are recorded in
+`experiments/rust-std/results.json`.
+
+For the historical macOS build, Zig 0.15.2's build runner could not link system
+symbols. `herdr-i586-prebuilt-ghostty.patch` therefore adds an explicit,
+target/size/SHA-256-checked `HERDR_ISH_GHOSTTY_ARCHIVE` option after the i586
+port. The first 1,224,644-byte archive (`2420a175…e9196`) is retained only as
+provenance: it has the broken i386 by-value ABI and is not an installation
+candidate. The current guard accepts only the separate iSH-compatible archive:
+1,237,632 bytes, SHA-256
+`a8c7123d6e8e6df0cab93cd54f21d060953fa628b0474b74a510463167ea2222`.
+Default builds still invoke Zig; the archive path is maintainer-explicit.
+
+`RUSTC_BOOTSTRAP` enables an unstable build feature only for this experiment;
+this is not an upstream-supported replacement toolchain. Cargo's
+[build-std documentation](https://doc.rust-lang.org/cargo/reference/unstable.html#build-std)
+describes the feature and normally requires nightly. Herdr's original lockfile,
+32-bit FFI assertions, vendored PTY initialization and scalar libghostty build
+remain in place. No automatic installer is enabled.
+
+`experiments/rust-process-compat-probe.rs` supplies `--list` and `--case NAME`.
+Compile it with the rebuilt std and `--cfg ish_pidfd_probe` to add the two custom
+pidfd rejection checks; run each case under an outer 30-second kill deadline.
+Stock-std builds omit that cfg, because upstream has a different pidfd contract.
+
+## Herdr ABI and PTY checks
+
+The minimal C/Zig reduction confirms that Zig 0.15.2 mis-lowers five i386
+by-value aggregate APIs even though their memory-layout assertions match. The C
+wrapper preserves the public prototypes and passes all 127 assertions in Linux.
+With only Ghostty's normal libc allocator enabled, the five terminal suites time
+out in iSH. `ghostty-vt-libc-option.patch` adds an x86 Linux musl-only iSH flag
+that also moves terminal page backing to page-aligned libc allocations and
+explicitly clears them. That archive passes all 127 assertions in both Linux
+binfmt and the iSH CLI. See `experiments/zig-i386-abi/` and
+`experiments/ghostty-allocator/results.json`.
+
+Herdr then required a separate local-socket compatibility path. On iSH it uses
+Rust UnixListener/UnixStream and treats unsupported/invalid socket receive-timeout
+configuration as best-effort; other builds retain `interprocess`. The final
+CLI binary (`3ede5a4a…d9809`) starts its server and pane, completes the client
+handshake, passes shell input/output, detaches, and reattaches to the same pane
+and shell PID. Its host PTY resize did not propagate: the pane remained 43x105
+after the host changed from 44x132 to 55x172. The owned server still stopped
+cleanly. Original-iPad testing is pending because SSH timed out before scratch
+upload; nothing was installed. See `experiments/herdr/results.json`.
+
+The actual vendored `portable-pty` and matching custom std were also tested in a
+fresh Alpine 3.14.10 CLI guest. `experiments/portable-pty-probe.rs` receives the
+expected output and terminal size, then its default blocking EOF read times out
+at 30 seconds. `--wait-after-output` instead waits/reaps after the known completion
+marker and passes in 24 ms. PTY opening, spawning, output and child waiting pass
+without changing library initialization. Herdr uses nonblocking PTY reads, so
+this blocking-EOF limitation does not explain its startup failure; final-output
+draining and pane cleanup still require acceptance.
+
+## Parallel SEQPACKET kernel prototype
+
+`experiments/patches/ish-seqpacket.patch` implements an in-memory AF_UNIX record
+transport instead of forwarding an unsupported Darwin socket type. Apply it to
+iSH `d189985e5cc6d0e70629efeb31505b51a9ce78af` after the existing
+`ish-socketpair-host-args.patch`. It includes socketpair and listener paths,
+record boundaries, EOF/shutdown, nonblocking readiness, timeouts, and ordinary
+file/pipe descriptor transfer. The C probe and machine-readable results are in
+`experiments/seqpacket/`.
+
+The native Linux reference passes 46/46 cases; the patched macOS CLI passes
+45/46. The remaining case is socket-descriptor transfer through SCM_RIGHTS,
+which deliberately returns EOPNOTSUPP until Unix socket-reference cycle
+collection exists. Original Rust std process tests pass on this kernel, so the
+initial spawn dependency is resolved independently of the custom std route.
+That stock-std Herdr attempt then reached missing `clock_nanosleep`; the custom
+std sleep patch above covers this separate gap without a device kernel change.
+
+This is **not complete Linux support**. Shared-descriptor concurrent-close
+lifetime handling, complete autobind/credential rules, remaining options/ioctls
+and edge-triggered epoll behavior still need work. Passing these bounded tests
+does not prove those paths. Xcode source entries exist, but no Xcode build,
+signing, sideload or iPad kernel replacement was performed. Keep this prototype
+in the CLI lab; the standard-library experiment runs on the original App.
