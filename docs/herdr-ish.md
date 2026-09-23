@@ -15,6 +15,18 @@ passes CLI named-session, pane I/O, detach and reattach checks with SHA-256
 `fe35d6587f524626512f6897d3113825717d2cdf3bdc791161988f8b084672af`.
 CLI host resize remains unresolved, and original-iPad transfer is pending.
 
+## v0.9.1 compatibility check — 2026-09-23
+
+Upstream stable is now v0.9.1 (`065ef9d6a531c49fb8bee7e818ef837065b21ee9`).
+Its build requires Zig 0.16.0, while the reviewed i386 pipeline pins 0.15.2.
+Patch-only checks against the exact tag fail in `build.rs`, Ghostty
+`src/lib_vt.zig`, `src/build/Config.zig`, `src/terminal/PageList.zig`, and
+`src/terminal/build_options.zig`. The existing C-ABI shim, allocator workaround
+and generated i586 bindings need review against the new vendored Ghostty.
+The builder lock therefore stays at v0.9.0; no 0.9.1 build or original-device
+acceptance is claimed. The shared ARM64/x86_64 asset lock is updated for the
+OpenWrt companion and does not enable unsupported i386 installation.
+
 ## Current device installation
 
 The tested v0.8.2 artifact has these properties:

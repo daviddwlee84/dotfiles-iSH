@@ -14,6 +14,18 @@ Linux 資產，而 iSH 執行 32 位元 x86 userspace。相容建置另需限制
 `fe35d6587f524626512f6897d3113825717d2cdf3bdc791161988f8b084672af`。
 CLI host resize 尚未解決，原版 iPad 傳輸仍待續。
 
+## v0.9.1 相容性檢查 — 2026-09-23
+
+上游最新 stable 為 v0.9.1（`065ef9d6a531c49fb8bee7e818ef837065b21ee9`），
+build 需要 Zig 0.16.0，而已審核的 i386 流程固定為 0.15.2。對精確 tag 做
+patch-only 檢查時，`build.rs` 以及 Ghostty 的 `src/lib_vt.zig`、
+`src/build/Config.zig`、`src/terminal/PageList.zig`、
+`src/terminal/build_options.zig` 均無法套用原補丁。C ABI shim、allocator
+workaround 與產生的 i586 bindings 需要依新版 Ghostty 重新審核。
+因此 builder lock 保留 v0.9.0，尚未完成 0.9.1 build 或原裝置驗收。
+共用 ARM64／x86_64 asset lock 更新供 OpenWrt 使用，不會開放未支援的 i386 安裝。
+
+
 ## 目前裝置上的安裝
 
 已測試的 v0.8.2 產物如下：
